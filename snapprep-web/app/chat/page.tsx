@@ -32,13 +32,6 @@ type Session = {
   title: string
 }
 
-const SESSIONS: Session[] = [
-  { id: "s1", title: "Práctica de Álgebra" },
-  { id: "s2", title: "Ecuaciones de Círculos Ejercicio #4" },
-  { id: "s3", title: "Ayuda con fórmula cuadrática" },
-  { id: "s4", title: "Sistemas de ecuaciones" },
-  { id: "s5", title: "Estrategia de tiempo para el examen" },
-]
 
 const SUGGESTIONS = [
   "Resolver una ecuación lineal",
@@ -104,7 +97,12 @@ export default function Page() {
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [activeId, setActiveId] = useState<string>("s1")
+  const [sessions, setSessions] = useState<Session[]>([])
   const [showProgress, setShowProgress] = useState(true)
+  const [showStartOptions, setShowStartOptions] = useState(false)
+  const [isAnalyzingBook, setIsAnalyzingBook] = useState(false)
+  const [analysisProgress, setAnalysisProgress] = useState(0)
+  const progressRef = useRef<number | null>(null)
   const [nodes, setNodes] = useState<PathNode[]>([
     { id: "1", label: "Aritmética", state: "completed" },
     { id: "2", label: "Fracciones", state: "completed" },
@@ -117,6 +115,7 @@ export default function Page() {
   const scrollRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
+  const pdfRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" })
@@ -128,6 +127,14 @@ export default function Page() {
     el.style.height = "auto"
     el.style.height = `${Math.min(el.scrollHeight, 160)}px`
   }, [inputText])
+
+  useEffect(() => {
+    return () => {
+      if (progressRef.current !== null) {
+        window.clearInterval(progressRef.current)
+      }
+    }
+  }, [])
 
   function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -141,38 +148,44 @@ export default function Page() {
     e.target.value = ""
   }
 
-  async function send(text: string, image: string | null) {
+  async function send(text: string, image: string | null, pdfFile?: { name: string; type: string; data: string }) {
     const trimmed = text.trim()
-    if (!trimmed && !image) return
+    const hasPdf = Boolean(pdfFile)
+    if (!trimmed && !image && !hasPdf) return
 
+    const userContent = trimmed || (pdfFile ? `He subido un PDF: ${pdfFile.name}. Por favor utiliza este material para ayudarme.` : "")
     const userMsg: ChatMessage = {
       id: `u-${Date.now()}`,
       role: "user",
-      content: trimmed,
+      content: userContent,
       image,
     }
-    
-    setMessages((prev) => [...prev, userMsg])
+
+    const nextMessages = [...messages, userMsg]
+    setMessages(nextMessages)
     setInputText("")
     setAttachedImage(null)
     setIsTyping(true)
+    if (hasPdf) {
+      setIsAnalyzingBook(true)
+    }
 
     try {
-      let base64Image = null;
+      let base64Image = null
       if (image) {
-        base64Image = image.split(",")[1]; 
+        base64Image = image.split(",")[1]
       }
 
-      // Determine active topic to send as context
       const activeTopic = nodes.find((n) => n.state === "active")?.label || "Álgebra"
 
       const response = await fetch("http://127.0.0.1:3000/api/explain", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          text: trimmed,
+          text: userContent,
           image: base64Image,
-          history: messages.map((m) => ({ role: m.role, content: m.content })),
+          file: pdfFile ? { name: pdfFile.name, type: pdfFile.type, data: pdfFile.data } : undefined,
+          history: nextMessages.map((m) => ({ role: m.role, content: m.content })),
           topic: activeTopic,
         }),
       })
@@ -180,6 +193,10 @@ export default function Page() {
       const data = await response.json()
       
       if (data.error) throw new Error(data.error)
+
+      if (Array.isArray(data.pathNodes) && data.pathNodes.length > 0) {
+        setNodes(data.pathNodes)
+      }
 
       const hasApproved = data.explanation.includes("[TEMA_APROBADO]")
       const cleanContent = hasApproved
@@ -213,6 +230,12 @@ export default function Page() {
       ])
     } finally {
       setIsTyping(false)
+      setIsAnalyzingBook(false)
+      setAnalysisProgress(100)
+      if (progressRef.current !== null) {
+        window.clearInterval(progressRef.current)
+        progressRef.current = null
+      }
     }
   }
 
@@ -232,8 +255,64 @@ export default function Page() {
   function newChat() {
     setMessages([WELCOME])
     setActiveId("")
+    setShowStartOptions(true)
     setMobileOpen(false)
     setInputText("")
+    setAttachedImage(null)
+  }
+
+  function uploadStudyMaterial() {
+    if (pdfRef.current) {
+      pdfRef.current.click()
+      return
+    }
+
+    setTimeout(() => pdfRef.current?.click(), 0)
+  }
+
+  function startAnalysisProgress() {
+    setAnalysisProgress(4)
+    if (progressRef.current !== null) {
+      window.clearInterval(progressRef.current)
+    }
+    progressRef.current = window.setInterval(() => {
+      setAnalysisProgress((prev) => {
+        const next = prev + Math.floor(Math.random() * 8) + 4
+        return next >= 97 ? 97 : next
+      })
+    }, 400)
+  }
+
+  function handlePdfUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    const sessionId = `session-${Date.now()}`
+    setSessions([{ id: sessionId, title: file.name }])
+    setActiveId(sessionId)
+    setShowStartOptions(false)
+    setMessages([WELCOME])
+    setIsTyping(true)
+    setIsAnalyzingBook(true)
+    startAnalysisProgress()
+
+    const reader = new FileReader()
+    reader.onloadend = () => {
+      const result = reader.result as string
+      const base64 = result.split(",")[1]
+      send(`He subido un PDF: ${file.name}. Por favor utiliza este material para ayudarme.`, null, {
+        name: file.name,
+        type: file.type,
+        data: base64,
+      })
+    }
+    reader.readAsDataURL(file)
+    e.target.value = ''
+  }
+
+  function startFreeChat() {
+    setShowStartOptions(false)
+    setMessages([WELCOME])
     setAttachedImage(null)
   }
 
@@ -286,31 +365,37 @@ export default function Page() {
             </p>
           )}
           <ul className="flex flex-col gap-0.5">
-            {SESSIONS.map((s) => {
-              const active = s.id === activeId
-              return (
-                <li key={s.id}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setActiveId(s.id)
-                      setMobileOpen(false)
-                    }}
-                    title={s.title}
-                    className={`flex h-9 w-full items-center gap-2.5 rounded-lg text-left text-sm transition-colors ${
-                      isCollapsed ? "justify-center px-0" : "px-2.5"
-                    } ${
-                      active
-                        ? "bg-accent font-medium text-accent-foreground"
-                        : "text-muted-foreground hover:bg-accent/60 hover:text-foreground"
-                    }`}
-                  >
-                    <MessageSquare className="size-4 shrink-0" aria-hidden="true" />
-                    {!isCollapsed && <span className="truncate">{s.title}</span>}
-                  </button>
-                </li>
-              )
-            })}
+            {sessions.length === 0 ? (
+              <li className="px-3 py-4 text-sm text-muted-foreground">
+                Aún no hay chats. Sube un PDF o inicia un chat libre.
+              </li>
+            ) : (
+              sessions.map((s) => {
+                const active = s.id === activeId
+                return (
+                  <li key={s.id}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveId(s.id)
+                        setMobileOpen(false)
+                      }}
+                      title={s.title}
+                      className={`flex h-9 w-full items-center gap-2.5 rounded-lg text-left text-sm transition-colors ${
+                        isCollapsed ? "justify-center px-0" : "px-2.5"
+                      } ${
+                        active
+                          ? "bg-accent font-medium text-accent-foreground"
+                          : "text-muted-foreground hover:bg-accent/60 hover:text-foreground"
+                      }`}
+                    >
+                      <MessageSquare className="size-4 shrink-0" aria-hidden="true" />
+                      {!isCollapsed && <span className="truncate">{s.title}</span>}
+                    </button>
+                  </li>
+                )
+              })
+            )}
           </ul>
         </nav>
 
@@ -324,6 +409,70 @@ export default function Page() {
             <Settings className="size-4 shrink-0" aria-hidden="true" />
             {!isCollapsed && <span>Configuración</span>}
           </button>
+        </div>
+      </div>
+    )
+  }
+
+  if (showStartOptions) {
+    return (
+      <div className="flex h-dvh items-center justify-center bg-background px-4 py-8">
+        <div className="w-full max-w-3xl rounded-[2rem] border border-border bg-card p-10 shadow-2xl shadow-black/20">
+          <input ref={pdfRef} type="file" accept="application/pdf" className="hidden" onChange={handlePdfUpload} />
+
+          {isAnalyzingBook && (
+            <div className="mb-6 rounded-3xl border border-primary/30 bg-primary/10 p-4 text-sm text-foreground">
+              <div className="flex items-center justify-between font-semibold">
+                <span>Analizando el libro</span>
+                <span>{analysisProgress}%</span>
+              </div>
+              <div className="mt-3 h-2 overflow-hidden rounded-full bg-neutral-900">
+                <div
+                  className="h-full rounded-full bg-primary transition-all duration-300"
+                  style={{ width: `${analysisProgress}%` }}
+                />
+              </div>
+            </div>
+          )}
+
+          <div className="space-y-6 text-center">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-[0.35em] text-muted-foreground">
+                Nuevo chat
+              </p>
+              <h1 className="mt-3 text-4xl font-bold tracking-tight text-foreground">
+                ¿Cómo quieres empezar?
+              </h1>
+              <p className="mx-auto mt-4 max-w-2xl text-sm leading-6 text-muted-foreground">
+                Elige si quieres subir tu material de estudio o iniciar una conversación libre.
+              </p>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={uploadStudyMaterial}
+                disabled={isAnalyzingBook}
+                className={`rounded-[1.75rem] border border-border px-6 py-6 text-left text-sm text-foreground transition hover:border-primary/40 hover:bg-accent ${
+                  isAnalyzingBook ? 'cursor-not-allowed opacity-60' : 'bg-zinc-900'
+                }`}
+              >
+                <p className="font-semibold text-foreground">Subir material de estudio</p>
+                <p className="mt-2 text-sm text-muted-foreground">Carga un PDF para que el tutor use ese contenido como referencia.</p>
+              </button>
+              <button
+                type="button"
+                onClick={startFreeChat}
+                disabled={isAnalyzingBook}
+                className={`rounded-[1.75rem] border border-border px-6 py-6 text-left text-sm text-foreground transition hover:border-primary/40 hover:bg-accent ${
+                  isAnalyzingBook ? 'cursor-not-allowed opacity-60' : 'bg-zinc-900'
+                }`}
+              >
+                <p className="font-semibold text-foreground">Chat libre</p>
+                <p className="mt-2 text-sm text-muted-foreground">Inicia con una pregunta directa o sube una imagen del problema.</p>
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     )
@@ -399,6 +548,23 @@ export default function Page() {
           </div>
         </header>
 
+        {isAnalyzingBook && (
+          <div className="mx-auto w-full max-w-3xl px-4 sm:px-6 py-4">
+            <div className="rounded-3xl border border-border bg-card p-4 shadow-sm">
+              <div className="flex items-center justify-between text-sm font-semibold text-foreground">
+                <span>Analizando el libro</span>
+                <span>{analysisProgress}%</span>
+              </div>
+              <div className="mt-3 h-2 overflow-hidden rounded-full bg-neutral-900">
+                <div
+                  className="h-full rounded-full bg-primary transition-all duration-300"
+                  style={{ width: `${analysisProgress}%` }}
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
         <div ref={scrollRef} className="flex-1 overflow-y-auto">
           <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-6 sm:px-6">
             {messages.map((m) =>
@@ -471,19 +637,56 @@ export default function Page() {
 
         <div className="border-t border-border/60 bg-background/80 backdrop-blur-xl">
           <div className="mx-auto w-full max-w-3xl px-4 py-3 sm:px-6 sm:py-4">
-            {messages.length === 1 && !isTyping && (
-              <div className="mb-3 flex flex-wrap gap-2">
-                {SUGGESTIONS.map((s) => (
-                  <button
-                    key={s}
-                    type="button"
-                    onClick={() => send(s, null)}
-                    className="rounded-full border border-border bg-card px-3.5 py-1.5 text-sm text-foreground transition-colors hover:border-primary/40 hover:bg-accent"
-                  >
-                    {s}
-                  </button>
-                ))}
+            {showStartOptions ? (
+              <div className="rounded-3xl border border-border bg-card p-8 text-foreground shadow-sm">
+                <div className="space-y-6 text-center">
+                  <div>
+                    <p className="text-sm font-semibold uppercase tracking-[0.35em] text-muted-foreground">
+                      Nuevo chat
+                    </p>
+                    <h2 className="mt-3 text-3xl font-bold tracking-tight text-foreground">
+                      ¿Cómo quieres empezar?
+                    </h2>
+                    <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-muted-foreground">
+                      Elige si quieres subir tu material de estudio o iniciar una conversación libre.
+                    </p>
+                  </div>
+
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <button
+                      type="button"
+                      onClick={uploadStudyMaterial}
+                      className="rounded-3xl border border-border bg-zinc-900 px-5 py-5 text-left text-sm text-foreground transition hover:border-primary/40 hover:bg-accent"
+                    >
+                      <p className="font-semibold text-foreground">Subir material de estudio</p>
+                      <p className="mt-2 text-sm text-muted-foreground">Carga un PDF o documento y usa ese material como referencia.</p>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={startFreeChat}
+                      className="rounded-3xl border border-border bg-zinc-900 px-5 py-5 text-left text-sm text-foreground transition hover:border-primary/40 hover:bg-accent"
+                    >
+                      <p className="font-semibold text-foreground">Chat libre</p>
+                      <p className="mt-2 text-sm text-muted-foreground">Comienza con una pregunta directa o sube una imagen del problema.</p>
+                    </button>
+                  </div>
+                </div>
               </div>
+            ) : (
+              messages.length === 1 && !isTyping && (
+                <div className="mb-3 flex flex-wrap gap-2">
+                  {SUGGESTIONS.map((s) => (
+                    <button
+                      key={s}
+                      type="button"
+                      onClick={() => send(s, null)}
+                      className="rounded-full border border-border bg-card px-3.5 py-1.5 text-sm text-foreground transition-colors hover:border-primary/40 hover:bg-accent"
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              )
             )}
 
             {attachedImage && (
@@ -511,6 +714,7 @@ export default function Page() {
               className="flex items-end gap-2 rounded-[1.75rem] border border-border bg-card p-2 shadow-sm transition-colors focus-within:border-primary/50"
             >
               <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
+              <input ref={pdfRef} type="file" accept="application/pdf" className="hidden" onChange={handlePdfUpload} />
               <button
                 type="button"
                 onClick={() => fileRef.current?.click()}
