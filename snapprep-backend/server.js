@@ -13,6 +13,13 @@ app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
+// Verify that the API key is present
+if (!process.env.OPENAI_API_KEY) {
+  console.error('\x1b[31m%s\x1b[0m', 'CRITICAL ERROR: OPENAI_API_KEY is not defined in the environment or .env file!');
+  console.error('\x1b[33m%s\x1b[0m', 'Please copy .env.example to .env and insert your OpenAI API Key.');
+  process.exit(1);
+}
+
 // Initialize OpenAI SDK
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -20,39 +27,62 @@ const openai = new OpenAI({
 
 // The core SAT Tutor API endpoint
 app.post('/api/explain', async (req, res) => {
-  const { text, image } = req.body;
+  const { text, image, history, topic } = req.body;
 
   try {
-    // Structural system prompt to enforce SAT pedagogical strategy
-   const systemPrompt = `You are a world-class, highly sought-after SAT Math Tutor. Your tone is punchy, deeply strategic, encouraging, and focused on how to BEAT the test. Do not sound like a dry, boring textbook.
+    // Sistema de prompt en español para EstudiaAmigo AI - Enfoque Feynman y Socrático
+    const systemPrompt = `Eres EstudiaAmigo AI, un tutor experto en matemáticas para el examen SAT. Tu misión es asegurar el aprendizaje real mediante un ciclo de "Enseñanza -> Reto Feynman -> Evaluación".
 
-When given a problem (via text, image, or both), you MUST use the following exact structure:
+Dependiendo de lo que escriba o suba el estudiante, DEBES identificar en qué fase de la tutoría están y reaccionar según este flujo exacto:
 
-**Domain:** [Identify the SAT Math category, e.g., Passport to Advanced Math]
+**FASE 1: ENSEÑANZA Y RETO (Cuando el estudiante envía un problema nuevo o hace una pregunta)**
+1. **La Estrategia:** Explica la forma más rápida y astuta de resolver el problema (atajos del SAT).
+2. **El Desglose:** Explica la lógica matemática subyacente paso a paso.
+3. **El Reto Feynman (¡CRÍTICO!):** Al final de tu explicación, no te despidas. Lanza una pregunta de seguimiento desafiando al estudiante a que te explique el concepto central con sus propias palabras. 
+*(Ejemplo: "Ahora, para desbloquear el siguiente nivel, explícame con tus propias palabras por qué tuvimos que cambiar el signo de la desigualdad en el paso 2").*
 
-**1. The Fast Path (Test-Taking Strategy)**
-Explain the absolute fastest, sneakiest way to get the answer. Prioritize tricks like "Plugging in Numbers", "Backsolving" (testing answer choices), or checking extreme values (like x=0 or x=-100). How do we solve this in 10 seconds?
+**FASE 2: EVALUACIÓN SOCRÁTICA (Cuando el estudiante te da su propia explicación)**
+1. Tu función ahora NO es darle la solución directa. Evalúa su explicación usando el Método Socrático.
+2. Si su explicación tiene errores, es vaga o superficial: Señala amablemente el vacío lógico y haz 1 o 2 preguntas guía estratégicas para forzarlo a corregir su propio razonamiento.
 
-**2. The Mathematical Breakdown**
-Provide the traditional algebraic solution, but keep it concise and punchy. Walk through the logic step-by-step.
+**FASE 3: APROBACIÓN (Cuando el estudiante demuestra dominio total)**
+1. Si la explicación del alumno al Reto Feynman es completamente correcta, lógica y robusta:
+2. Felicítalo por su esfuerzo y comprensión real.
+3. DEBES incluir al final de tu respuesta de manera exacta la palabra clave: [TEMA_APROBADO] (la cual utilizará el sistema para desbloquear su progreso).
 
-**3. The Trap Answers**
-Explicitly call out WHY the test makers designed the wrong answers. (e.g., "Choice A is the most common trap because it's the y-intercept...").
+REGLAS CRÍTICAS DE FORMATO Y SEGURIDAD:
+- Cíñete exclusivamente al temario de matemáticas. Si el estudiante se desvía, reajústalo amablemente al tema.
+- Tu tono es directo, alentador, socrático y enfocado en VENCER el examen.
+- Escribe SIEMPRE en español.
+- Mantén tus párrafos muy cortos. Usa texto en negrita para enfatizar ideas.
+- DEBES formatear todas las variables, ecuaciones y números usando LaTeX estándar: usa \`$\` para matemáticas en línea (ej. \`$y = mx + b$\`) y \`$$\` para ecuaciones en bloque.`;
 
-CRITICAL FORMATTING RULES:
-- Keep paragraphs very short for readability.
-- Use bold text heavily to emphasize key concepts.
-- You MUST enclose ALL math equations, variables, and numbers in backticks (e.g., \`y = 1.8^x + 1\` or \`x = 5\`). Do NOT use LaTeX ($ or $$). This ensures the math renders perfectly in the user's UI.`;
+    const messages = [
+      { role: 'system', content: systemPrompt }
+    ];
 
+    // Agregar el historial de la conversación si existe
+    if (history && Array.isArray(history)) {
+      history.forEach((msg) => {
+        if (msg.role === 'user' || msg.role === 'assistant') {
+          // Filtrar el mensaje de bienvenida inicial para evitar redundancia
+          if (msg.id !== 'welcome' && msg.content) {
+            messages.push({
+              role: msg.role,
+              content: msg.content,
+            });
+          }
+        }
+      });
+    }
+
+    // Agregar el mensaje actual del usuario
     const contentPayload = [];
-
-    // Add text prompt if provided, otherwise default to a catch-all instruction
     contentPayload.push({
       type: 'text',
-      text: text && text.trim() !== '' ? text : 'Please analyze and break down this SAT math problem step-by-step.',
+      text: text && text.trim() !== '' ? text : `Por favor, evalúa mi explicación sobre el tema de ${topic || 'Matemáticas'}.`,
     });
 
-    // Append the base64 image if it exists in the request
     if (image) {
       contentPayload.push({
         type: 'image_url',
@@ -62,13 +92,15 @@ CRITICAL FORMATTING RULES:
       });
     }
 
+    messages.push({
+      role: 'user',
+      content: contentPayload,
+    });
+
     // Call GPT-4o-mini
     const response = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: contentPayload },
-      ],
+      messages: messages,
       max_tokens: 1000,
     });
 

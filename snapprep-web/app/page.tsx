@@ -1,9 +1,9 @@
 "use client"
 import ReactMarkdown from "react-markdown"
 import remarkMath from "remark-math"
+
 import rehypeKatex from "rehype-katex"
-import "katex/dist/katex.min.css" 
-import type React from "react"
+import "katex/dist/katex.min.css"
 import { useEffect, useRef, useState } from "react"
 import {
   Sparkles,
@@ -16,7 +16,9 @@ import {
   Camera,
   ArrowUp,
   X,
+  Map,
 } from "lucide-react"
+import LearningPath, { PathNode } from "@/components/learning-path"
 
 type ChatMessage = {
   id: string
@@ -102,6 +104,15 @@ export default function Page() {
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [activeId, setActiveId] = useState<string>("s1")
+  const [showProgress, setShowProgress] = useState(true)
+  const [nodes, setNodes] = useState<PathNode[]>([
+    { id: "1", label: "Aritmética", state: "completed" },
+    { id: "2", label: "Fracciones", state: "completed" },
+    { id: "3", label: "Álgebra", state: "active" },
+    { id: "4", label: "Geometría", state: "locked" },
+    { id: "5", label: "Trigonometría", state: "locked" },
+    { id: "6", label: "Estadística", state: "locked" },
+  ])
 
   const scrollRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -152,12 +163,17 @@ export default function Page() {
         base64Image = image.split(",")[1]; 
       }
 
+      // Determine active topic to send as context
+      const activeTopic = nodes.find((n) => n.state === "active")?.label || "Álgebra"
+
       const response = await fetch("http://127.0.0.1:3000/api/explain", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           text: trimmed,
           image: base64Image,
+          history: messages.map((m) => ({ role: m.role, content: m.content })),
+          topic: activeTopic,
         }),
       })
 
@@ -165,10 +181,30 @@ export default function Page() {
       
       if (data.error) throw new Error(data.error)
 
+      const hasApproved = data.explanation.includes("[TEMA_APROBADO]")
+      const cleanContent = hasApproved
+        ? data.explanation.replace("[TEMA_APROBADO]", "").trim()
+        : data.explanation
+
       setMessages((prev) => [
         ...prev,
-        { id: `a-${Date.now()}`, role: "assistant", content: data.explanation },
+        { id: `a-${Date.now()}`, role: "assistant", content: cleanContent },
       ])
+
+      if (hasApproved) {
+        setNodes((prevNodes) => {
+          const activeIndex = prevNodes.findIndex((n) => n.state === "active")
+          if (activeIndex !== -1) {
+            const updated = [...prevNodes]
+            updated[activeIndex] = { ...updated[activeIndex], state: "completed" }
+            if (activeIndex + 1 < updated.length) {
+              updated[activeIndex + 1] = { ...updated[activeIndex + 1], state: "active" }
+            }
+            return updated
+          }
+          return prevNodes
+        })
+      }
     } catch (error) {
       console.error("FRONTEND FETCH ERROR DETECTED:", error)
       setMessages((prev) => [
@@ -303,6 +339,12 @@ export default function Page() {
         <SidebarContent isCollapsed={collapsed} />
       </aside>
 
+      {showProgress && (
+        <aside className="hidden xl:block w-80 shrink-0 border-r border-border/60 overflow-y-auto no-scrollbar bg-neutral-950 p-6 animate-in slide-in-from-left duration-300">
+          <LearningPath nodes={nodes} />
+        </aside>
+      )}
+
       {mobileOpen && (
         <div className="fixed inset-0 z-40 md:hidden">
           <button
@@ -333,12 +375,26 @@ export default function Page() {
                 EstudiaAmigo <span className="text-primary">AI</span>
               </h1>
             </div>
-            <div className="flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5">
-              <span className="relative flex size-2">
-                <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-500 opacity-75" />
-                <span className="relative inline-flex size-2 rounded-full bg-emerald-500" />
-              </span>
-              <span className="text-xs font-medium text-muted-foreground">Tutor IA Activo</span>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setShowProgress((p) => !p)}
+                className={`hidden xl:flex size-9 items-center justify-center rounded-lg border transition-all duration-200 ${
+                  showProgress
+                    ? "bg-orange-950/40 border-orange-500/30 text-orange-400 shadow-sm"
+                    : "border-transparent text-muted-foreground hover:bg-accent hover:text-foreground"
+                }`}
+                title={showProgress ? "Ocultar ruta de aprendizaje" : "Mostrar ruta de aprendizaje"}
+              >
+                <Map className="size-5" />
+              </button>
+              <div className="flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5">
+                <span className="relative flex size-2">
+                  <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-500 opacity-75" />
+                  <span className="relative inline-flex size-2 rounded-full bg-emerald-500" />
+                </span>
+                <span className="text-xs font-medium text-muted-foreground">Tutor IA Activo</span>
+              </div>
             </div>
           </div>
         </header>
@@ -368,8 +424,26 @@ export default function Page() {
                   <div className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
                     <Sparkles className="size-3.5" aria-hidden="true" />
                   </div>
-                  <div className="max-w-[85%] text-[0.95rem] text-foreground">
-                    {renderContent(m.content)}
+                  <div className="max-w-[85%] text-[0.95rem] text-foreground space-y-2">
+                    <ReactMarkdown
+                      remarkPlugins={[remarkMath]}
+                      rehypePlugins={[rehypeKatex]}
+                      components={{
+                        p: ({ children }) => <p className="leading-7">{children}</p>,
+                        strong: ({ children }) => <strong className="font-semibold text-foreground">{children}</strong>,
+                        ol: ({ children }) => <ol className="list-decimal pl-5 my-2.5 space-y-1.5">{children}</ol>,
+                        ul: ({ children }) => <ul className="list-disc pl-5 my-2.5 space-y-1.5">{children}</ul>,
+                        li: ({ children }) => <li className="leading-7">{children}</li>,
+                        pre: ({ children }) => <pre className="my-3 overflow-x-auto rounded-lg border border-border bg-muted p-4 font-mono text-[0.9rem] text-foreground">{children}</pre>,
+                        code: ({ children, ...props }) => (
+                          <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-[0.9em] text-foreground" {...props}>
+                            {children}
+                          </code>
+                        ),
+                      }}
+                    >
+                      {m.content}
+                    </ReactMarkdown>
                   </div>
                 </div>
               ),
