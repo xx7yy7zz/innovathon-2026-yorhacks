@@ -177,6 +177,8 @@ REGLAS:
 - Tono: Directo, alentador, socrático.
 - Idioma: SIEMPRE en español.
 - Formato: Párrafos cortos, **negrita** en conceptos, LaTeX para mates ($x=7$ o $$x=7$$).
+- Todas las expresiones matemáticas deben ir dentro de delimitadores de LaTeX: "$ ... $" para inline y "$$ ... $$" para display.
+- No uses comandos TeX sueltos como \frac{1}{4} fuera de un bloque de delimitadores.
 - **No incluyas texto explicativo fuera de los bloques de código cuando generes SVGs, solo el código dentro del bloque.**
 `;
 

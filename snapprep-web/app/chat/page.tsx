@@ -221,6 +221,8 @@ export default function Page() {
           }
           return prevNodes
         })
+
+        setMessages([WELCOME])
       }
     } catch (error) {
       console.error("FRONTEND FETCH ERROR DETECTED:", error)
