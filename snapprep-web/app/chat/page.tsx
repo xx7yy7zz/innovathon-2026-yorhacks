@@ -1,9 +1,9 @@
 "use client"
 import ReactMarkdown from "react-markdown"
 import remarkMath from "remark-math"
+
 import rehypeKatex from "rehype-katex"
-import "katex/dist/katex.min.css" // This makes the math look beautiful!
-import type React from "react"
+import "katex/dist/katex.min.css"
 import { useEffect, useRef, useState } from "react"
 import {
   Sparkles,
@@ -16,7 +16,9 @@ import {
   Camera,
   ArrowUp,
   X,
+  Map,
 } from "lucide-react"
+import LearningPath, { PathNode } from "@/components/learning-path"
 
 type ChatMessage = {
   id: string
@@ -31,31 +33,30 @@ type Session = {
 }
 
 const SESSIONS: Session[] = [
-  { id: "s1", title: "Heart of Algebra Drill" },
-  { id: "s2", title: "Circle Equations Q#4" },
-  { id: "s3", title: "Quadratic formula help" },
-  { id: "s4", title: "Systems of equations" },
-  { id: "s5", title: "SAT pacing strategy" },
+  { id: "s1", title: "Práctica de Álgebra" },
+  { id: "s2", title: "Ecuaciones de Círculos Ejercicio #4" },
+  { id: "s3", title: "Ayuda con fórmula cuadrática" },
+  { id: "s4", title: "Sistemas de ecuaciones" },
+  { id: "s5", title: "Estrategia de tiempo para el examen" },
 ]
 
 const SUGGESTIONS = [
-  "Solve a linear equation",
-  "Explain the quadratic formula",
-  "Help with a word problem",
+  "Resolver una ecuación lineal",
+  "Explicar la fórmula cuadrática",
+  "Ayuda con un problema razonado",
 ]
 
 const WELCOME: ChatMessage = {
   id: "welcome",
   role: "assistant",
   content:
-    "Hi, I'm your EstudiaAmigo AI SAT tutor. Snap a screenshot of any math problem or type your question, and I'll walk you through it step by step. What are we working on today?",
+    "Hola, soy tu tutor de EstudiaAmigo AI. Sube una captura de pantalla de cualquier problema matemático o escribe tu pregunta, y te guiaré paso a paso. ¿En qué vamos a trabajar hoy?",
 }
 
 function renderContent(text: string) {
   return text.split("\n").map((line, i) => {
     if (line.trim() === "") return <div key={i} className="h-2" />
 
-    // Standalone formula / code line
     if (line.startsWith("`") && line.endsWith("`") && line.length > 1) {
       return (
         <div
@@ -67,7 +68,6 @@ function renderContent(text: string) {
       )
     }
 
-    // Inline bold (**...**) and inline code (`...`)
     const parts = line.split(/(\*\*[^*]+\*\*|`[^`]+`)/g).filter(Boolean)
     return (
       <p key={i} className="leading-7">
@@ -104,17 +104,24 @@ export default function Page() {
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [activeId, setActiveId] = useState<string>("s1")
+  const [showProgress, setShowProgress] = useState(true)
+  const [nodes, setNodes] = useState<PathNode[]>([
+    { id: "1", label: "Aritmética", state: "completed" },
+    { id: "2", label: "Fracciones", state: "completed" },
+    { id: "3", label: "Álgebra", state: "active" },
+    { id: "4", label: "Geometría", state: "locked" },
+    { id: "5", label: "Trigonometría", state: "locked" },
+    { id: "6", label: "Estadística", state: "locked" },
+  ])
 
   const scrollRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
-  // Auto-scroll to newest message
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" })
   }, [messages, isTyping])
 
-  // Auto-grow the textarea
   useEffect(() => {
     const el = textareaRef.current
     if (!el) return
@@ -122,21 +129,18 @@ export default function Page() {
     el.style.height = `${Math.min(el.scrollHeight, 160)}px`
   }, [inputText])
 
-  // --- UPDATED IMAGE HANDLER FOR BACKEND BASE64 ---
   function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
 
     const reader = new FileReader()
     reader.onloadend = () => {
-      // Stores the "data:image/jpeg;base64,..." string
       setAttachedImage(reader.result as string)
     }
     reader.readAsDataURL(file)
     e.target.value = ""
   }
 
-  // --- UPDATED SEND LOGIC TO CALL YOUR EXPRESS SERVER ---
   async function send(text: string, image: string | null) {
     const trimmed = text.trim()
     if (!trimmed && !image) return
@@ -154,11 +158,13 @@ export default function Page() {
     setIsTyping(true)
 
     try {
-      // Extract the raw base64 string without the prefix
       let base64Image = null;
       if (image) {
         base64Image = image.split(",")[1]; 
       }
+
+      // Determine active topic to send as context
+      const activeTopic = nodes.find((n) => n.state === "active")?.label || "Álgebra"
 
       const response = await fetch("http://127.0.0.1:3000/api/explain", {
         method: "POST",
@@ -166,6 +172,8 @@ export default function Page() {
         body: JSON.stringify({
           text: trimmed,
           image: base64Image,
+          history: messages.map((m) => ({ role: m.role, content: m.content })),
+          topic: activeTopic,
         }),
       })
 
@@ -173,15 +181,35 @@ export default function Page() {
       
       if (data.error) throw new Error(data.error)
 
+      const hasApproved = data.explanation.includes("[TEMA_APROBADO]")
+      const cleanContent = hasApproved
+        ? data.explanation.replace("[TEMA_APROBADO]", "").trim()
+        : data.explanation
+
       setMessages((prev) => [
         ...prev,
-        { id: `a-${Date.now()}`, role: "assistant", content: data.explanation },
+        { id: `a-${Date.now()}`, role: "assistant", content: cleanContent },
       ])
+
+      if (hasApproved) {
+        setNodes((prevNodes) => {
+          const activeIndex = prevNodes.findIndex((n) => n.state === "active")
+          if (activeIndex !== -1) {
+            const updated = [...prevNodes]
+            updated[activeIndex] = { ...updated[activeIndex], state: "completed" }
+            if (activeIndex + 1 < updated.length) {
+              updated[activeIndex + 1] = { ...updated[activeIndex + 1], state: "active" }
+            }
+            return updated
+          }
+          return prevNodes
+        })
+      }
     } catch (error) {
       console.error("FRONTEND FETCH ERROR DETECTED:", error)
       setMessages((prev) => [
         ...prev,
-        { id: `a-${Date.now()}`, role: "assistant", content: "Sorry, I ran into an error processing that problem. Please check your server connection." },
+        { id: `a-${Date.now()}`, role: "assistant", content: "Lo siento, ocurrió un error al procesar el problema. Por favor revisa la conexión con el servidor." },
       ])
     } finally {
       setIsTyping(false)
@@ -194,7 +222,6 @@ export default function Page() {
     send(inputText, attachedImage)
   }
 
-  // Handle key press
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault()
@@ -232,7 +259,7 @@ export default function Page() {
               if (mobileOpen) setMobileOpen(false)
               else setCollapsed((c) => !c)
             }}
-            aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            aria-label={isCollapsed ? "Expandir barra lateral" : "Contraer barra lateral"}
             className="flex size-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
           >
             {isCollapsed ? <PanelLeftOpen className="size-5" /> : <PanelLeftClose className="size-5" />}
@@ -248,14 +275,14 @@ export default function Page() {
             }`}
           >
             <Plus className="size-4 shrink-0" aria-hidden="true" />
-            {!isCollapsed && <span>New chat</span>}
+            {!isCollapsed && <span>Nuevo chat</span>}
           </button>
         </div>
 
         <nav className="flex-1 overflow-y-auto px-3 py-2">
           {!isCollapsed && (
             <p className="px-2 pb-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-              Past sessions
+              Sesiones anteriores
             </p>
           )}
           <ul className="flex flex-col gap-0.5">
@@ -295,7 +322,7 @@ export default function Page() {
             }`}
           >
             <Settings className="size-4 shrink-0" aria-hidden="true" />
-            {!isCollapsed && <span>Settings</span>}
+            {!isCollapsed && <span>Configuración</span>}
           </button>
         </div>
       </div>
@@ -312,11 +339,17 @@ export default function Page() {
         <SidebarContent isCollapsed={collapsed} />
       </aside>
 
+      {showProgress && (
+        <aside className="hidden xl:block w-80 shrink-0 border-r border-border/60 overflow-y-auto no-scrollbar bg-neutral-950 p-6 animate-in slide-in-from-left duration-300">
+          <LearningPath nodes={nodes} />
+        </aside>
+      )}
+
       {mobileOpen && (
         <div className="fixed inset-0 z-40 md:hidden">
           <button
             type="button"
-            aria-label="Close menu"
+            aria-label="Cerrar menú"
             onClick={() => setMobileOpen(false)}
             className="absolute inset-0 bg-foreground/40 backdrop-blur-sm"
           />
@@ -333,7 +366,7 @@ export default function Page() {
               <button
                 type="button"
                 onClick={() => setMobileOpen(true)}
-                aria-label="Open menu"
+                aria-label="Abrir menú"
                 className="flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground md:hidden"
               >
                 <Menu className="size-5" />
@@ -342,12 +375,26 @@ export default function Page() {
                 EstudiaAmigo <span className="text-primary">AI</span>
               </h1>
             </div>
-            <div className="flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5">
-              <span className="relative flex size-2">
-                <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-500 opacity-75" />
-                <span className="relative inline-flex size-2 rounded-full bg-emerald-500" />
-              </span>
-              <span className="text-xs font-medium text-muted-foreground">AI Tutor Active</span>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setShowProgress((p) => !p)}
+                className={`hidden xl:flex size-9 items-center justify-center rounded-lg border transition-all duration-200 ${
+                  showProgress
+                    ? "bg-orange-950/40 border-orange-500/30 text-orange-400 shadow-sm"
+                    : "border-transparent text-muted-foreground hover:bg-accent hover:text-foreground"
+                }`}
+                title={showProgress ? "Ocultar ruta de aprendizaje" : "Mostrar ruta de aprendizaje"}
+              >
+                <Map className="size-5" />
+              </button>
+              <div className="flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5">
+                <span className="relative flex size-2">
+                  <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-500 opacity-75" />
+                  <span className="relative inline-flex size-2 rounded-full bg-emerald-500" />
+                </span>
+                <span className="text-xs font-medium text-muted-foreground">Tutor IA Activo</span>
+              </div>
             </div>
           </div>
         </header>
@@ -361,7 +408,7 @@ export default function Page() {
                     {m.image && (
                       <img
                         src={m.image || "/placeholder.svg"}
-                        alt="Uploaded SAT problem"
+                        alt="Problema subido"
                         className="max-h-64 w-auto rounded-2xl border border-border object-cover"
                       />
                     )}
@@ -377,8 +424,26 @@ export default function Page() {
                   <div className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
                     <Sparkles className="size-3.5" aria-hidden="true" />
                   </div>
-                  <div className="max-w-[85%] text-[0.95rem] text-foreground">
-                    {renderContent(m.content)}
+                  <div className="max-w-[85%] text-[0.95rem] text-foreground space-y-2">
+                    <ReactMarkdown
+                      remarkPlugins={[remarkMath]}
+                      rehypePlugins={[rehypeKatex]}
+                      components={{
+                        p: ({ children }) => <p className="leading-7">{children}</p>,
+                        strong: ({ children }) => <strong className="font-semibold text-foreground">{children}</strong>,
+                        ol: ({ children }) => <ol className="list-decimal pl-5 my-2.5 space-y-1.5">{children}</ol>,
+                        ul: ({ children }) => <ul className="list-disc pl-5 my-2.5 space-y-1.5">{children}</ul>,
+                        li: ({ children }) => <li className="leading-7">{children}</li>,
+                        pre: ({ children }) => <pre className="my-3 overflow-x-auto rounded-lg border border-border bg-muted p-4 font-mono text-[0.9rem] text-foreground">{children}</pre>,
+                        code: ({ children, ...props }) => (
+                          <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-[0.9em] text-foreground" {...props}>
+                            {children}
+                          </code>
+                        ),
+                      }}
+                    >
+                      {m.content}
+                    </ReactMarkdown>
                   </div>
                 </div>
               ),
@@ -396,7 +461,7 @@ export default function Page() {
                     <span className="typing-dot size-1.5 rounded-full bg-primary [animation-delay:0.3s]" />
                   </span>
                   <span className="text-sm font-medium text-muted-foreground">
-                    Analyzing your math problem...
+                    Analizando tu problema matemático...
                   </span>
                 </div>
               </div>
@@ -426,13 +491,13 @@ export default function Page() {
                 <div className="relative">
                   <img
                     src={attachedImage || "/placeholder.svg"}
-                    alt="Attachment preview"
+                    alt="Vista previa del adjunto"
                     className="size-20 rounded-xl border border-border object-cover"
                   />
                   <button
                     type="button"
                     onClick={() => setAttachedImage(null)}
-                    aria-label="Remove attachment"
+                    aria-label="Eliminar adjunto"
                     className="absolute -right-2 -top-2 flex size-6 items-center justify-center rounded-full bg-foreground text-background shadow-md transition-transform hover:scale-105"
                   >
                     <X className="size-3.5" />
@@ -449,7 +514,7 @@ export default function Page() {
               <button
                 type="button"
                 onClick={() => fileRef.current?.click()}
-                aria-label="Attach a screenshot"
+                aria-label="Adjuntar una captura de pantalla"
                 className="flex size-10 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
               >
                 <Camera className="size-5" />
@@ -461,21 +526,21 @@ export default function Page() {
                 onChange={(e) => setInputText(e.target.value)}
                 onKeyDown={handleKeyDown}
                 rows={1}
-                placeholder="Ask a question or snap a problem..."
+                placeholder="Haz una pregunta o sube un problema..."
                 className="max-h-40 flex-1 resize-none bg-transparent py-2.5 text-[0.95rem] leading-6 text-foreground outline-none placeholder:text-muted-foreground"
               />
 
               <button
                 type="submit"
                 disabled={!canSend}
-                aria-label="Send message"
+                aria-label="Enviar mensaje"
                 className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground transition-all hover:bg-primary/90 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground"
               >
                 <ArrowUp className="size-5" />
               </button>
             </form>
             <p className="mt-2 text-center text-xs text-muted-foreground">
-              EstudiaAmigo AI can make mistakes. Always double-check your work.
+              EstudiaAmigo AI puede cometer errores. Siempre revisa tu trabajo.
             </p>
           </div>
         </div>
