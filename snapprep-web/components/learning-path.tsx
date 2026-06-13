@@ -25,12 +25,12 @@ function Hexagon({ node }: { node: PathNode }) {
         {/* Pulsing halo */}
         <span
           aria-hidden
-          className="absolute -inset-1.5 bg-orange-500/20 blur-md rounded-full animate-pulse"
+          className="absolute -inset-1.5 bg-emerald-500/20 blur-md rounded-full animate-pulse"
         />
         
         {/* Outer Hexagon Border */}
         <div
-          className="absolute inset-0 bg-orange-500/50"
+          className="absolute inset-0 bg-emerald-500/50"
           style={{ clipPath: HEX_CLIP }}
         />
         
@@ -42,7 +42,7 @@ function Hexagon({ node }: { node: PathNode }) {
 
         {/* Inner Solid Hexagon */}
         <div
-          className="relative flex size-11 items-center justify-center bg-gradient-to-br from-orange-400 to-orange-600 shadow-md shadow-orange-500/50 hover:scale-105 transition-transform duration-200"
+          className="relative flex size-11 items-center justify-center bg-gradient-to-br from-emerald-400 to-emerald-600 shadow-md shadow-emerald-500/50 hover:scale-105 transition-transform duration-200"
           style={{ clipPath: HEX_CLIP }}
         >
           <Star className="size-5 fill-white text-white animate-[spin_12s_linear_infinite]" />
@@ -55,7 +55,7 @@ function Hexagon({ node }: { node: PathNode }) {
     return (
       <div className={`${base} size-14 hover:scale-105 cursor-pointer`}>
         <div
-          className="flex size-14 items-center justify-center bg-gradient-to-br from-orange-400 to-orange-600 shadow-md shadow-orange-600/30"
+          className="flex size-14 items-center justify-center bg-gradient-to-br from-emerald-400 to-emerald-600 shadow-md shadow-emerald-600/30"
           style={{ clipPath: HEX_CLIP }}
         >
           <Check className="size-6 text-white" strokeWidth={3} />
@@ -94,7 +94,7 @@ export function LearningPath({ nodes }: LearningPathProps) {
       className="w-full flex flex-col"
     >
       <header className="mb-8 select-none">
-        <p className="text-xs font-bold uppercase tracking-widest text-orange-500">
+        <p className="text-xs font-bold uppercase tracking-widest text-emerald-500">
           Tu progreso
         </p>
         <h2 className="text-xl font-bold tracking-tight text-neutral-100 mt-1">Ruta de Matemáticas</h2>
@@ -123,7 +123,7 @@ export function LearningPath({ nodes }: LearningPathProps) {
                 >
                   {node.label}
                   {node.state === "active" && (
-                    <span className="ml-2.5 inline-block rounded-full bg-orange-950/50 border border-orange-500/30 px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-widest text-orange-400">
+                    <span className="ml-2.5 inline-block rounded-full bg-emerald-950/50 border border-emerald-500/30 px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-widest text-emerald-400">
                       Ahora
                     </span>
                   )}
@@ -142,7 +142,7 @@ export function LearningPath({ nodes }: LearningPathProps) {
                   <span
                     aria-hidden
                     className={`h-full w-1 rounded-full ${
-                      connectorActive ? "bg-orange-500" : "bg-neutral-800"
+                      connectorActive ? "bg-emerald-500" : "bg-neutral-800"
                     }`}
                   />
                 </div>

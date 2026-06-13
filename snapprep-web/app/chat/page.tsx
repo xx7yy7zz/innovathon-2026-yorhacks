@@ -32,14 +32,6 @@ type Session = {
   title: string
 }
 
-const SESSIONS: Session[] = [
-  { id: "s1", title: "Práctica de Álgebra" },
-  { id: "s2", title: "Ecuaciones de Círculos Ejercicio #4" },
-  { id: "s3", title: "Ayuda con fórmula cuadrática" },
-  { id: "s4", title: "Sistemas de ecuaciones" },
-  { id: "s5", title: "Estrategia de tiempo para el examen" },
-]
-
 const SUGGESTIONS = [
   "Resolver una ecuación lineal",
   "Explicar la fórmula cuadrática",
@@ -53,58 +45,19 @@ const WELCOME: ChatMessage = {
     "Hola, soy tu tutor de EstudiaAmigo AI. Sube una captura de pantalla de cualquier problema matemático o escribe tu pregunta, y te guiaré paso a paso. ¿En qué vamos a trabajar hoy?",
 }
 
-function renderContent(text: string) {
-  return text.split("\n").map((line, i) => {
-    if (line.trim() === "") return <div key={i} className="h-2" />
-
-    if (line.startsWith("`") && line.endsWith("`") && line.length > 1) {
-      return (
-        <div
-          key={i}
-          className="my-2 rounded-lg border border-border bg-muted px-3.5 py-2.5 font-mono text-[0.95rem] text-foreground"
-        >
-          {line.slice(1, -1)}
-        </div>
-      )
-    }
-
-    const parts = line.split(/(\*\*[^*]+\*\*|`[^`]+`)/g).filter(Boolean)
-    return (
-      <p key={i} className="leading-7">
-        {parts.map((part, j) => {
-          if (part.startsWith("**") && part.endsWith("**")) {
-            return (
-              <strong key={j} className="font-semibold text-foreground">
-                {part.slice(2, -2)}
-              </strong>
-            )
-          }
-          if (part.startsWith("`") && part.endsWith("`")) {
-            return (
-              <code
-                key={j}
-                className="rounded bg-muted px-1.5 py-0.5 font-mono text-[0.9em] text-foreground"
-              >
-                {part.slice(1, -1)}
-              </code>
-            )
-          }
-          return <span key={j}>{part}</span>
-        })}
-      </p>
-    )
-  })
-}
-
 export default function Page() {
   const [messages, setMessages] = useState<ChatMessage[]>([WELCOME])
   const [inputText, setInputText] = useState("")
   const [attachedImage, setAttachedImage] = useState<string | null>(null)
   const [isTyping, setIsTyping] = useState(false)
+  const [isAnalyzingPdf, setIsAnalyzingPdf] = useState(false)
+  const [pdfProgress, setPdfProgress] = useState(0)
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
-  const [activeId, setActiveId] = useState<string>("s1")
+  const [activeId, setActiveId] = useState<string>("")
+  const [sessions, setSessions] = useState<Session[]>([])
   const [showProgress, setShowProgress] = useState(true)
+  const [showStartOptions, setShowStartOptions] = useState(false)
   const [nodes, setNodes] = useState<PathNode[]>([
     { id: "1", label: "Aritmética", state: "completed" },
     { id: "2", label: "Fracciones", state: "completed" },
@@ -117,6 +70,7 @@ export default function Page() {
   const scrollRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
+  const pdfRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" })
@@ -128,6 +82,46 @@ export default function Page() {
     el.style.height = "auto"
     el.style.height = `${Math.min(el.scrollHeight, 160)}px`
   }, [inputText])
+
+  useEffect(() => {
+    if (!isAnalyzingPdf) {
+      return
+    }
+
+    setPdfProgress(5)
+    const interval = window.setInterval(() => {
+      setPdfProgress((current) => {
+        const next = current + Math.floor(Math.random() * 6) + 3
+        return next >= 92 ? 92 : next
+      })
+    }, 360)
+
+    return () => {
+      window.clearInterval(interval)
+    }
+  }, [isAnalyzingPdf])
+
+  function getFileBase64(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        const result = reader.result as string
+        // Remove the "data:...;base64," prefix if present
+        const base64 = result.includes(',') ? result.split(',')[1] : result
+        resolve(base64)
+      }
+      reader.onerror = reject
+      reader.readAsDataURL(file)
+    })
+  }
+
+  function createSession(title: string) {
+    const id = `s-${Date.now()}`
+    const session = { id, title }
+    setSessions((prev) => [session, ...prev])
+    setActiveId(id)
+    return id
+  }
 
   function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -141,9 +135,71 @@ export default function Page() {
     e.target.value = ""
   }
 
+  async function handlePdfUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file || file.type !== "application/pdf") return
+
+    try {
+      // create a new session for this upload if none active
+      if (!activeId) createSession(file.name)
+      setIsAnalyzingPdf(true)
+      const base64 = await getFileBase64(file)
+
+      const response = await fetch("http://127.0.0.1:3000/api/explain", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          text: `He subido un libro de texto. Por favor, analiza su contenido.`,
+          file: {
+            name: file.name,
+            type: file.type,
+            data: base64,
+          },
+          history: messages,
+        }),
+      })
+
+      const data = await response.json()
+      if (data.error) throw new Error(data.error)
+
+      if (data.pathNodes && Array.isArray(data.pathNodes)) {
+        setNodes(data.pathNodes)
+      }
+
+      const aiMsg: ChatMessage = {
+        id: `a-${Date.now()}`,
+        role: "assistant",
+        content: data.explanation || "Libro cargado exitosamente. Tu ruta de estudio ha sido generada.",
+      }
+
+      setShowStartOptions(false)
+      setMessages([WELCOME, aiMsg])
+    } catch (error) {
+      console.error("PDF upload error:", error)
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `a-${Date.now()}`,
+          role: "assistant",
+          content: "Lo siento, hubo un error al procesar el PDF. Por favor, intenta de nuevo.",
+        },
+      ])
+    } finally {
+      setPdfProgress(100)
+      window.setTimeout(() => setIsAnalyzingPdf(false), 350)
+      if (pdfRef.current) pdfRef.current.value = ""
+    }
+  }
+
   async function send(text: string, image: string | null) {
     const trimmed = text.trim()
     if (!trimmed && !image) return
+
+    // Ensure there's an active session for this chat
+    if (!activeId) {
+      const hint = trimmed || "Chat libre"
+      createSession(hint.length > 40 ? hint.slice(0, 40) : hint)
+    }
 
     const userMsg: ChatMessage = {
       id: `u-${Date.now()}`,
@@ -180,6 +236,11 @@ export default function Page() {
       const data = await response.json()
       
       if (data.error) throw new Error(data.error)
+
+      // Update learning path nodes if backend returned them
+      if (data.pathNodes && Array.isArray(data.pathNodes)) {
+        setNodes(data.pathNodes)
+      }
 
       const hasApproved = data.explanation.includes("[TEMA_APROBADO]")
       const cleanContent = hasApproved
@@ -232,9 +293,20 @@ export default function Page() {
   function newChat() {
     setMessages([WELCOME])
     setActiveId("")
+    setShowStartOptions(true)
     setMobileOpen(false)
     setInputText("")
     setAttachedImage(null)
+  }
+
+  function startFreeChat() {
+    setShowStartOptions(false)
+    setMessages([WELCOME])
+  }
+
+  function uploadTextbook() {
+    setMessages([WELCOME])
+    pdfRef.current?.click()
   }
 
   const canSend = (inputText.trim().length > 0 || attachedImage !== null) && !isTyping
@@ -286,7 +358,7 @@ export default function Page() {
             </p>
           )}
           <ul className="flex flex-col gap-0.5">
-            {SESSIONS.map((s) => {
+            {sessions.map((s) => {
               const active = s.id === activeId
               return (
                 <li key={s.id}>
@@ -360,6 +432,31 @@ export default function Page() {
       )}
 
       <main className="flex h-dvh min-w-0 flex-1 flex-col">
+        {isAnalyzingPdf && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 p-4">
+            <div className="w-full max-w-lg rounded-3xl border border-white/10 bg-[#050506] p-8 text-center text-white shadow-2xl">
+              <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full border border-emerald-500/20 bg-emerald-500/10">
+                <div className="h-12 w-12 animate-spin rounded-full border-4 border-emerald-400 border-t-transparent" />
+              </div>
+              <h2 className="text-2xl font-semibold">Analizando tu libro de texto</h2>
+              <p className="mt-3 text-sm leading-6 text-neutral-300">
+                Estamos revisando el contenido completo para crear tu ruta de estudio. ¡Listo en breve!
+              </p>
+                <div className="mt-8 rounded-2xl border border-white/10 bg-neutral-950 p-4">
+                <div className="mb-2 flex items-center justify-between text-xs uppercase tracking-[0.3em] text-neutral-500">
+                  <span>Progreso</span>
+                  <span>{pdfProgress}%</span>
+                </div>
+                <div className="h-2.5 overflow-hidden rounded-full bg-white/10">
+                  <div
+                      className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-emerald-400 transition-all duration-300"
+                    style={{ width: `${pdfProgress}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
         <header className="sticky top-0 z-20 border-b border-border/60 bg-background/80 backdrop-blur-xl">
           <div className="mx-auto flex w-full max-w-3xl items-center justify-between px-4 py-3.5 sm:px-6">
             <div className="flex items-center gap-2.5">
@@ -381,7 +478,7 @@ export default function Page() {
                 onClick={() => setShowProgress((p) => !p)}
                 className={`hidden xl:flex size-9 items-center justify-center rounded-lg border transition-all duration-200 ${
                   showProgress
-                    ? "bg-orange-950/40 border-orange-500/30 text-orange-400 shadow-sm"
+                    ? "bg-emerald-950/40 border-emerald-500/30 text-emerald-400 shadow-sm"
                     : "border-transparent text-muted-foreground hover:bg-accent hover:text-foreground"
                 }`}
                 title={showProgress ? "Ocultar ruta de aprendizaje" : "Mostrar ruta de aprendizaje"}
@@ -401,52 +498,118 @@ export default function Page() {
 
         <div ref={scrollRef} className="flex-1 overflow-y-auto">
           <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-6 sm:px-6">
-            {messages.map((m) =>
-              m.role === "user" ? (
-                <div key={m.id} className="flex justify-end">
-                  <div className="flex max-w-[85%] flex-col items-end gap-2">
-                    {m.image && (
-                      <img
-                        src={m.image || "/placeholder.svg"}
-                        alt="Problema subido"
-                        className="max-h-64 w-auto rounded-2xl border border-border object-cover"
-                      />
-                    )}
-                    {m.content && (
-                      <div className="rounded-2xl rounded-br-md bg-primary px-4 py-2.5 text-[0.95rem] leading-7 text-primary-foreground">
-                        {m.content}
-                      </div>
-                    )}
+            {showStartOptions ? (
+              <div className="rounded-3xl border border-border bg-card p-8 text-foreground shadow-sm">
+                <div className="flex flex-col gap-3">
+                  <div className="flex items-center justify-center rounded-3xl bg-primary/8 p-5 text-primary-foreground">
+                    <Sparkles className="size-8" />
                   </div>
-                </div>
-              ) : (
-                <div key={m.id} className="flex justify-start gap-3">
-                  <div className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                    <Sparkles className="size-3.5" aria-hidden="true" />
+                  <div className="space-y-3 text-center">
+                    <p className="text-sm font-semibold uppercase tracking-[0.3em] text-muted-foreground">
+                      Bienvenido
+                    </p>
+                    <h2 className="text-3xl font-bold tracking-tight text-foreground">
+                      ¿Cómo quieres iniciar el nuevo chat?
+                    </h2>
+                    <p className="mx-auto max-w-xl text-sm leading-6 text-muted-foreground">
+                      Elige una opción y comenzamos con tu experiencia personalizada.
+                    </p>
                   </div>
-                  <div className="max-w-[85%] text-[0.95rem] text-foreground space-y-2">
-                    <ReactMarkdown
-                      remarkPlugins={[remarkMath]}
-                      rehypePlugins={[rehypeKatex]}
-                      components={{
-                        p: ({ children }) => <p className="leading-7">{children}</p>,
-                        strong: ({ children }) => <strong className="font-semibold text-foreground">{children}</strong>,
-                        ol: ({ children }) => <ol className="list-decimal pl-5 my-2.5 space-y-1.5">{children}</ol>,
-                        ul: ({ children }) => <ul className="list-disc pl-5 my-2.5 space-y-1.5">{children}</ul>,
-                        li: ({ children }) => <li className="leading-7">{children}</li>,
-                        pre: ({ children }) => <pre className="my-3 overflow-x-auto rounded-lg border border-border bg-muted p-4 font-mono text-[0.9rem] text-foreground">{children}</pre>,
-                        code: ({ children, ...props }) => (
-                          <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-[0.9em] text-foreground" {...props}>
-                            {children}
-                          </code>
-                        ),
-                      }}
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <button
+                      type="button"
+                      onClick={uploadTextbook}
+                      className="rounded-3xl border border-border bg-card px-5 py-4 text-left text-sm text-foreground transition hover:border-primary/40 hover:bg-accent"
                     >
-                      {m.content}
-                    </ReactMarkdown>
+                      <p className="font-semibold text-foreground">Subir un libro de texto</p>
+                      <p className="mt-2 text-sm text-muted-foreground">
+                        Agrega material de estudio para que el tutor use tu libro como referencia.
+                      </p>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={startFreeChat}
+                      className="rounded-3xl border border-border bg-card px-5 py-4 text-left text-sm text-foreground transition hover:border-primary/40 hover:bg-accent"
+                    >
+                      <p className="font-semibold text-foreground">Chat libre</p>
+                      <p className="mt-2 text-sm text-muted-foreground">
+                        Empieza con una pregunta directa o sube una imagen de tu problema.
+                      </p>
+                    </button>
                   </div>
                 </div>
-              ),
+              </div>
+            ) : (
+              <>
+                {messages.map((m) => (
+                  m.role === "user" ? (
+                    <div key={m.id} className="flex justify-end">
+                      <div className="flex max-w-[85%] flex-col items-end gap-2">
+                        {m.image && (
+                          <img
+                            src={m.image || "/placeholder.svg"}
+                            alt="Problema subido"
+                            className="max-h-64 w-auto rounded-2xl border border-border object-cover"
+                          />
+                        )}
+                        {m.content && (
+                          <div className="rounded-2xl rounded-br-md bg-primary px-4 py-2.5 text-[0.95rem] leading-7 text-primary-foreground">
+                            {m.content}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div key={m.id} className="flex justify-start gap-3">
+                      <div className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+                        <Sparkles className="size-3.5" aria-hidden="true" />
+                      </div>
+                      <div className="max-w-[85%] text-[0.95rem] text-foreground space-y-2">
+                        <ReactMarkdown
+                          remarkPlugins={[remarkMath]}
+                          rehypePlugins={[rehypeKatex]}
+                          components={{
+                            p: ({ children }) => <p className="leading-7">{children}</p>,
+                            strong: ({ children }) => <strong className="font-semibold text-foreground">{children}</strong>,
+                            ol: ({ children }) => <ol className="list-decimal pl-5 my-2.5 space-y-1.5">{children}</ol>,
+                            ul: ({ children }) => <ul className="list-disc pl-5 my-2.5 space-y-1.5">{children}</ul>,
+                            li: ({ children }) => <li className="leading-7">{children}</li>,
+                            pre: ({ children, ...props }: any) => {
+                              // If child is our custom SVG code block, do not wrap it in a <pre> style
+                              const isSvg = children?.props?.className?.includes('language-svg') || children?.props?.className?.includes('language-xml')
+                              if (isSvg) {
+                                return <>{children}</>
+                              }
+                              return <pre className="my-3 overflow-x-auto rounded-lg border border-border bg-muted p-4 font-mono text-[0.9rem] text-foreground" {...props}>{children}</pre>
+                            },
+                            code: ({ inline, className, children, ...props }: any) => {
+                              const match = /language-(\w+)/.exec(className || '')
+                              const isSvg = match && (match[1] === 'svg' || match[1] === 'xml')
+                              
+                              if (!inline && isSvg) {
+                                return (
+                                  <div
+                                    className="my-4 flex w-full items-center justify-center overflow-x-auto rounded-xl border border-emerald-500/20 bg-[#09090b] p-6 shadow-inner shadow-emerald-500/5"
+                                    dangerouslySetInnerHTML={{ __html: String(children).replace(/\n$/, '') }}
+                                  />
+                                )
+                              }
+                              
+                              return (
+                                <code className={`${className || ''} rounded bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 font-mono text-[0.9em] text-emerald-400`} {...props}>
+                                  {children}
+                                </code>
+                              )
+                            },
+                          }}
+                        >
+                          {m.content}
+                        </ReactMarkdown>
+                      </div>
+                    </div>
+                  )
+                ))}
+              </>
             )}
 
             {isTyping && (
@@ -511,6 +674,7 @@ export default function Page() {
               className="flex items-end gap-2 rounded-[1.75rem] border border-border bg-card p-2 shadow-sm transition-colors focus-within:border-primary/50"
             >
               <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
+              <input ref={pdfRef} type="file" accept="application/pdf" className="hidden" onChange={handlePdfUpload} />
               <button
                 type="button"
                 onClick={() => fileRef.current?.click()}

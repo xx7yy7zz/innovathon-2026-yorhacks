@@ -1,7 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const { OpenAI } = require('openai');
-const pdfParse = require('pdf-parse');
+const PDFParser = require("pdf2json"); // Swapped to the stable library
 require('dotenv').config();
 
 const app = express();
@@ -28,10 +28,24 @@ const openai = new OpenAI({
 
 let uploadedTextbook = null;
 
+// NEW BULLETPROOF PDF PARSER
 async function parsePdfBase64(base64) {
-  const pdfBuffer = Buffer.from(base64, 'base64');
-  const data = await pdfParse(pdfBuffer);
-  return data.text || '';
+  return new Promise((resolve, reject) => {
+    try {
+      const pdfBuffer = Buffer.from(base64, 'base64');
+      const pdfParser = new PDFParser(this, 1); // 1 = extract raw text
+
+      pdfParser.on("pdfParser_dataError", errData => reject(errData.parserError));
+      pdfParser.on("pdfParser_dataReady", pdfData => {
+        const extractedText = pdfParser.getRawTextContent();
+        resolve(extractedText || '');
+      });
+
+      pdfParser.parseBuffer(pdfBuffer);
+    } catch (error) {
+      reject(error);
+    }
+  });
 }
 
 function cleanJsonOutput(content) {
@@ -46,18 +60,32 @@ function cleanJsonOutput(content) {
 }
 
 async function generateStudyPath(summary, bookName) {
-  const prompt = `Eres un tutor experto en matemáticas. Has recibido un extracto de un libro de texto titulado "${bookName}". Genera una ruta de estudio de 4 a 6 niveles organizada de más fácil a más difícil.
+  const prompt = `Eres un tutor experto en matemáticas. Has recibido un extracto del libro "${bookName}".
+  
+Misión crítica para el sistema: Debes generar una ruta de estudio de EXACTAMENTE 6 niveles. 
+REGLA ESTRICTA: Debes alternar un tema de Fracciones y un tema de Geometría basándote en el contenido del libro.
+
+Sigue esta estructura obligatoria de menor a mayor dificultad:
+- Nivel 1: Tema básico de Fracciones (ej. Conceptos generales).
+- Nivel 2: Tema básico de Geometría (ej. Clasificando triángulos).
+- Nivel 3: Tema intermedio de Fracciones.
+- Nivel 4: Tema intermedio de Geometría.
+- Nivel 5: Tema avanzado de Fracciones.
+- Nivel 6: Tema avanzado de Geometría.
 
 Entrega SOLO un JSON válido con la siguiente estructura:
 {
   "nodes": [
-    { "id": "1", "label": "Nivel 1 - ...", "state": "active" },
-    { "id": "2", "label": "Nivel 2 - ...", "state": "locked" },
-    ...
+    { "id": "1", "label": "Fracciones: [Nombre Tema]", "state": "active" },
+    { "id": "2", "label": "Geometría: [Nombre Tema]", "state": "locked" },
+    { "id": "3", "label": "Fracciones: [Nombre Tema]", "state": "locked" },
+    { "id": "4", "label": "Geometría: [Nombre Tema]", "state": "locked" },
+    { "id": "5", "label": "Fracciones: [Nombre Tema]", "state": "locked" },
+    { "id": "6", "label": "Geometría: [Nombre Tema]", "state": "locked" }
   ]
 }
 
-Marca el primer nivel como "active" y los demás como "locked". No agregues texto adicional fuera del JSON.
+No agregues texto adicional fuera del JSON.
 
 Extracto del libro:
 ${summary}`
@@ -78,13 +106,22 @@ ${summary}`
 
 function buildTextbookContext() {
   if (!uploadedTextbook) return '';
-  return `El estudiante cargó un libro de texto: "${uploadedTextbook.name}".
-Usa su contenido en todas las respuestas cuando sea relevante.
+  
+  const niveles = uploadedTextbook.pathNodes 
+    ? uploadedTextbook.pathNodes.map(n => n.label).join(', ') 
+    : 'conceptos básicos';
 
-Extracto disponible del libro:
-${uploadedTextbook.summary}
+  return `[CONTEXTO DEL SISTEMA]: 
+El estudiante acaba de cargar el libro de texto: "${uploadedTextbook.name}".
+Ruta de estudio generada: ${niveles}.
 
-Si el estudiante pide ayuda con un ejercicio o tema, relaciónalo con el contenido del libro.`;
+[INSTRUCCIÓN CRÍTICA PARA TU PRIMERA RESPUESTA]: 
+1. Confirma con entusiasmo que has analizado el libro.
+2. Anuncia cuál es el primer tema de la ruta (Nivel 1).
+3. Ponle un problema de práctica MUY SENCILLO sobre ese tema y pídele SOLO su respuesta final (el número). NO le pidas que explique nada todavía.
+
+Extracto del libro de referencia:
+${uploadedTextbook.summary}`;
 }
 
 // The core SAT Tutor API endpoint
@@ -95,7 +132,7 @@ app.post('/api/explain', async (req, res) => {
     let pathNodes = null;
     if (file && file.type === 'application/pdf' && file.data) {
       const extractedText = await parsePdfBase64(file.data);
-      const summary = extractedText.length > 12000 ? extractedText.slice(0, 12000) : extractedText;
+      const summary = extractedText.length > 80000 ? extractedText.slice(0, 80000) : extractedText; // Aumentado a 80k
       const nodes = await generateStudyPath(summary, file.name);
       uploadedTextbook = {
         name: file.name,
@@ -106,36 +143,41 @@ app.post('/api/explain', async (req, res) => {
       pathNodes = nodes
     }
     // Sistema de prompt en español para EstudiaAmigo AI - Enfoque Feynman y Socrático
-    const systemPrompt = `Eres EstudiaAmigo AI, un tutor experto en matemáticas e inteligencia artificial. Tu misión es asegurar el aprendizaje real y profundo mediante un ciclo de "Enseñanza -> Reto Feynman -> Evaluación Socrática", aplicable a cualquier nivel de estudio.
+    // Sistema de prompt actualizado para EstudiaAmigo AI
+    const systemPrompt = `Eres EstudiaAmigo AI, un tutor experto en matemáticas e inteligencia artificial. Tu misión es asegurar el aprendizaje real y profundo.
 
 ${buildTextbookContext()}
 
-Dependiendo de la interacción del estudiante, DEBES seguir este flujo exacto:
+MÁQUINA DE ESTADOS DEL TUTOR (DEBES SEGUIR ESTE FLUJO EXACTO):
 
-**FASE 1: ENSEÑANZA Y RETO (Cuando el estudiante envía un problema nuevo)**
-1. **El Desglose:** Proporciona una explicación clara, lógica y paso a paso para resolver el problema. No te limites a dar la respuesta final; enseña el "por qué".
-2. **El Reto Feynman (¡CRÍTICO!):** Al final de tu explicación, no te despidas simplemente. Lanza una pregunta de seguimiento desafiando al estudiante a que te explique el concepto central con sus propias palabras. 
-*(Ejemplo: "Ahora, para asegurarnos de que esto quedó claro, explícame con tus propias palabras por qué tuvimos que igualar la ecuación a cero en el paso 2").*
+**FASE 0: DIAGNÓSTICO (Inicio)**
+- Cuando le pones un problema nuevo al estudiante, pídele SOLO que intente resolverlo y te dé su respuesta final.
 
-**FASE 2: EVALUACIÓN SOCRÁTICA (Cuando el estudiante responde a tu reto)**
-1. Tu función ahora NO es darle la solución directa si se equivoca. Evalúa su explicación críticamente utilizando el Método Socrático.
-2. Si su explicación tiene errores, es vaga o superficial: Señala amablemente el área confusa y haz 1 o 2 preguntas guía estratégicas para forzarlo a detectar y corregir su propio error lógico.
+**FASE 1: TRANSICIÓN AL RETO FEYNMAN (Cuando el estudiante da su respuesta matemática)**
+- Si su respuesta es INCORRECTA: Explica paso a paso y con empatía cómo se resuelve correctamente el problema. Al final de tu explicación, lanza el Reto Feynman pidiéndole que te explique un concepto específico de lo que acabas de enseñarle.
+- Si su respuesta es CORRECTA: Felicítalo porque su resultado es matemáticamente correcto. SIN EMBARGO, dile que para aprobar oficialmente el nivel, debe superar el Reto Feynman. Pídele que te explique paso a paso y con sus propias palabras CÓMO llegó a esa respuesta.
 
-**FASE 3: APROBACIÓN (Cuando el estudiante demuestra dominio total)**
-1. Si la explicación del alumno al Reto Feynman es completamente correcta y demuestra comprensión real:
-2. Felicítalo por su excelente esfuerzo.
-3. DEBES incluir al final de tu respuesta de manera exacta la palabra clave: [TEMA_APROBADO] (la cual utilizará el sistema para registrar su progreso).
+**FASE 2: EVALUACIÓN SOCRÁTICA (Cuando el estudiante responde al Reto Feynman)**
+- Evalúa sus palabras lógicas, no solo los números.
+- Si su explicación lógica tiene errores o es muy vaga: Haz 1 o 2 preguntas guía socráticas para forzarlo a mejorar su explicación por sí mismo. No le des la respuesta directa.
 
-REGLAS DE SEGURIDAD (GUARDRAILS):
-- Cíñete exclusivamente al estudio de las matemáticas. Si el estudiante desvía la conversación, reajústalo amablemente al área de estudio activo.
-- Evita alucinaciones. Prioriza la precisión matemática absoluta.
+**FASE 3: APROBACIÓN (Dominio total)**
+- Si su explicación al Reto Feynman es sólida y lógicamente correcta:
+- Felicítalo por su dominio real del tema.
+- DEBES incluir al final de tu respuesta de manera exacta la palabra clave: [TEMA_APROBADO].
 
-FORMATO Y TONO:
+REGLAS DE SEGURIDAD Y FORMATO:
+- Nunca digas que no tienes la capacidad de leer libros si el texto extraído ya está en el contexto.
 - Tu tono es directo, alentador y socrático.
-- Escribe SIEMPRE en español.
-- Mantén tus párrafos muy cortos para facilitar la lectura.
+- Escribe SIEMPRE en español con párrafos muy cortos.
 - Usa texto en negrita para enfatizar conceptos clave.
-- DEBES formatear todas las variables, ecuaciones y números usando LaTeX estándar: usa \`$\` para matemáticas en línea (ej. \`$y = mx + b$\`) y \`$$\` para ecuaciones en bloque.`;
+- DEBES formatear todas las variables, ecuaciones y números usando LaTeX estándar: usa \`$\` para matemáticas en línea (ej. \`$x = 7$\`) y \`$$\` para ecuaciones en bloque.
+**FASE 4: GEOMETRÍA Y GRÁFICOS VISUALES**
+- Si el tema es geometría o necesitas ilustrar una figura matemática (triángulos, rectángulos, etc.), NO intentes dibujarla con caracteres de texto (ASCII). 
+- DEBES generar código SVG puro para dibujar la figura.
+- Envuelve estrictamente el código en un bloque de markdown con la etiqueta \`svg\`.
+- Usa colores para un tema oscuro: líneas verdes (stroke="#10b981"), fondos transparentes (fill="none") y letras blancas (fill="white").
+`;
 
     const messages = [
       { role: 'system', content: systemPrompt }
