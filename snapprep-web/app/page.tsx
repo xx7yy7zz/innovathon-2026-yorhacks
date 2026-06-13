@@ -105,6 +105,8 @@ export default function Page() {
   const [mobileOpen, setMobileOpen] = useState(false)
   const [activeId, setActiveId] = useState<string>("s1")
   const [showProgress, setShowProgress] = useState(true)
+  const [showStartOptions, setShowStartOptions] = useState(false)
+  const [attachedFile, setAttachedFile] = useState<File | null>(null)
   const [nodes, setNodes] = useState<PathNode[]>([
     { id: "1", label: "Aritmética", state: "completed" },
     { id: "2", label: "Fracciones", state: "completed" },
@@ -117,6 +119,22 @@ export default function Page() {
   const scrollRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
+
+  function getFileBase64(file: File) {
+    return new Promise<string>((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        const result = reader.result
+        if (typeof result === "string") {
+          resolve(result.split(",")[1])
+        } else {
+          reject(new Error("No se pudo leer el archivo."))
+        }
+      }
+      reader.onerror = () => reject(reader.error)
+      reader.readAsDataURL(file)
+    })
+  }
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" })
@@ -133,17 +151,23 @@ export default function Page() {
     const file = e.target.files?.[0]
     if (!file) return
 
-    const reader = new FileReader()
-    reader.onloadend = () => {
-      setAttachedImage(reader.result as string)
+    setAttachedFile(file)
+    if (file.type.startsWith("image/")) {
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        setAttachedImage(reader.result as string)
+      }
+      reader.readAsDataURL(file)
+    } else {
+      setAttachedImage(null)
     }
-    reader.readAsDataURL(file)
+
     e.target.value = ""
   }
 
   async function send(text: string, image: string | null) {
     const trimmed = text.trim()
-    if (!trimmed && !image) return
+    if (!trimmed && !image && !attachedFile) return
 
     const userMsg: ChatMessage = {
       id: `u-${Date.now()}`,
@@ -152,15 +176,22 @@ export default function Page() {
       image,
     }
     
+    setShowStartOptions(false)
     setMessages((prev) => [...prev, userMsg])
     setInputText("")
     setAttachedImage(null)
+    setAttachedFile(null)
     setIsTyping(true)
 
     try {
-      let base64Image = null;
-      if (image) {
-        base64Image = image.split(",")[1]; 
+      let filePayload = null
+      if (attachedFile) {
+        const fileData = await getFileBase64(attachedFile)
+        filePayload = {
+          name: attachedFile.name,
+          type: attachedFile.type,
+          data: fileData,
+        }
       }
 
       // Determine active topic to send as context
@@ -171,7 +202,8 @@ export default function Page() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           text: trimmed,
-          image: base64Image,
+          image: attachedFile && attachedFile.type.startsWith("image/") ? await getFileBase64(attachedFile) : null,
+          file: filePayload,
           history: messages.map((m) => ({ role: m.role, content: m.content })),
           topic: activeTopic,
         }),
@@ -180,6 +212,10 @@ export default function Page() {
       const data = await response.json()
       
       if (data.error) throw new Error(data.error)
+
+      if (data.pathNodes && Array.isArray(data.pathNodes)) {
+        setNodes(data.pathNodes)
+      }
 
       const hasApproved = data.explanation.includes("[TEMA_APROBADO]")
       const cleanContent = hasApproved
@@ -232,12 +268,26 @@ export default function Page() {
   function newChat() {
     setMessages([WELCOME])
     setActiveId("")
+    setShowStartOptions(true)
     setMobileOpen(false)
     setInputText("")
     setAttachedImage(null)
+    setAttachedFile(null)
   }
 
-  const canSend = (inputText.trim().length > 0 || attachedImage !== null) && !isTyping
+  function startFreeChat() {
+    setShowStartOptions(false)
+    setMessages([WELCOME])
+    setAttachedFile(null)
+  }
+
+  function uploadTextbook() {
+    setShowStartOptions(false)
+    setMessages([WELCOME])
+    fileRef.current?.click()
+  }
+
+  const canSend = (inputText.trim().length > 0 || attachedImage !== null || attachedFile !== null) && !isTyping
 
   function SidebarContent({ isCollapsed }: { isCollapsed: boolean }) {
     return (
@@ -401,52 +451,97 @@ export default function Page() {
 
         <div ref={scrollRef} className="flex-1 overflow-y-auto">
           <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-6 sm:px-6">
-            {messages.map((m) =>
-              m.role === "user" ? (
-                <div key={m.id} className="flex justify-end">
-                  <div className="flex max-w-[85%] flex-col items-end gap-2">
-                    {m.image && (
-                      <img
-                        src={m.image || "/placeholder.svg"}
-                        alt="Problema subido"
-                        className="max-h-64 w-auto rounded-2xl border border-border object-cover"
-                      />
-                    )}
-                    {m.content && (
-                      <div className="rounded-2xl rounded-br-md bg-primary px-4 py-2.5 text-[0.95rem] leading-7 text-primary-foreground">
-                        {m.content}
-                      </div>
-                    )}
+            {showStartOptions ? (
+              <div className="rounded-3xl border border-border bg-card p-8 text-foreground shadow-sm">
+                <div className="flex flex-col gap-3">
+                  <div className="flex items-center justify-center rounded-3xl bg-primary/8 p-5 text-primary-foreground">
+                    <Sparkles className="size-8" />
                   </div>
-                </div>
-              ) : (
-                <div key={m.id} className="flex justify-start gap-3">
-                  <div className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                    <Sparkles className="size-3.5" aria-hidden="true" />
+                  <div className="space-y-3 text-center">
+                    <p className="text-sm font-semibold uppercase tracking-[0.3em] text-muted-foreground">
+                      Bienvenido
+                    </p>
+                    <h2 className="text-3xl font-bold tracking-tight text-foreground">
+                      ¿Cómo quieres iniciar el nuevo chat?
+                    </h2>
+                    <p className="mx-auto max-w-xl text-sm leading-6 text-muted-foreground">
+                      Elige una opción y comenzamos con tu experiencia personalizada.
+                    </p>
                   </div>
-                  <div className="max-w-[85%] text-[0.95rem] text-foreground space-y-2">
-                    <ReactMarkdown
-                      remarkPlugins={[remarkMath]}
-                      rehypePlugins={[rehypeKatex]}
-                      components={{
-                        p: ({ children }) => <p className="leading-7">{children}</p>,
-                        strong: ({ children }) => <strong className="font-semibold text-foreground">{children}</strong>,
-                        ol: ({ children }) => <ol className="list-decimal pl-5 my-2.5 space-y-1.5">{children}</ol>,
-                        ul: ({ children }) => <ul className="list-disc pl-5 my-2.5 space-y-1.5">{children}</ul>,
-                        li: ({ children }) => <li className="leading-7">{children}</li>,
-                        pre: ({ children }) => <pre className="my-3 overflow-x-auto rounded-lg border border-border bg-muted p-4 font-mono text-[0.9rem] text-foreground">{children}</pre>,
-                        code: ({ children, ...props }) => (
-                          <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-[0.9em] text-foreground" {...props}>
-                            {children}
-                          </code>
-                        ),
-                      }}
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <button
+                      type="button"
+                      onClick={uploadTextbook}
+                      className="rounded-3xl border border-border bg-card px-5 py-4 text-left text-sm text-foreground transition hover:border-primary/40 hover:bg-accent"
                     >
-                      {m.content}
-                    </ReactMarkdown>
+                      <p className="font-semibold text-foreground">Subir un libro de texto</p>
+                      <p className="mt-2 text-sm text-muted-foreground">
+                        Agrega material de estudio para que el tutor use tu libro como referencia.
+                      </p>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={startFreeChat}
+                      className="rounded-3xl border border-border bg-card px-5 py-4 text-left text-sm text-foreground transition hover:border-primary/40 hover:bg-accent"
+                    >
+                      <p className="font-semibold text-foreground">Chat libre</p>
+                      <p className="mt-2 text-sm text-muted-foreground">
+                        Empieza con una pregunta directa o sube una imagen de tu problema.
+                      </p>
+                    </button>
                   </div>
                 </div>
-              ),
+              </div>
+            ) : (
+              <>
+                {messages.map((m) => (
+                  m.role === "user" ? (
+                    <div key={m.id} className="flex justify-end">
+                      <div className="flex max-w-[85%] flex-col items-end gap-2">
+                        {m.image && (
+                          <img
+                            src={m.image || "/placeholder.svg"}
+                            alt="Problema subido"
+                            className="max-h-64 w-auto rounded-2xl border border-border object-cover"
+                          />
+                        )}
+                        {m.content && (
+                          <div className="rounded-2xl rounded-br-md bg-primary px-4 py-2.5 text-[0.95rem] leading-7 text-primary-foreground">
+                            {m.content}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div key={m.id} className="flex justify-start gap-3">
+                      <div className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+                        <Sparkles className="size-3.5" aria-hidden="true" />
+                      </div>
+                      <div className="max-w-[85%] text-[0.95rem] text-foreground space-y-2">
+                        <ReactMarkdown
+                          remarkPlugins={[remarkMath]}
+                          rehypePlugins={[rehypeKatex]}
+                          components={{
+                            p: ({ children }) => <p className="leading-7">{children}</p>,
+                            strong: ({ children }) => <strong className="font-semibold text-foreground">{children}</strong>,
+                            ol: ({ children }) => <ol className="list-decimal pl-5 my-2.5 space-y-1.5">{children}</ol>,
+                            ul: ({ children }) => <ul className="list-disc pl-5 my-2.5 space-y-1.5">{children}</ul>,
+                            li: ({ children }) => <li className="leading-7">{children}</li>,
+                            pre: ({ children }) => <pre className="my-3 overflow-x-auto rounded-lg border border-border bg-muted p-4 font-mono text-[0.9rem] text-foreground">{children}</pre>,
+                            code: ({ children, ...props }) => (
+                              <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-[0.9em] text-foreground" {...props}>
+                                {children}
+                              </code>
+                            ),
+                          }}
+                        >
+                          {m.content}
+                        </ReactMarkdown>
+                      </div>
+                    </div>
+                  )
+                ))}
+              </>
             )}
 
             {isTyping && (
@@ -486,17 +581,30 @@ export default function Page() {
               </div>
             )}
 
-            {attachedImage && (
+            {(attachedImage || (attachedFile && attachedFile.type === "application/pdf")) && (
               <div className="mb-3 flex">
-                <div className="relative">
-                  <img
-                    src={attachedImage || "/placeholder.svg"}
-                    alt="Vista previa del adjunto"
-                    className="size-20 rounded-xl border border-border object-cover"
-                  />
+                <div className="relative rounded-xl border border-border bg-card p-4">
+                  {attachedImage ? (
+                    <img
+                      src={attachedImage || "/placeholder.svg"}
+                      alt="Vista previa del adjunto"
+                      className="size-20 rounded-xl object-cover"
+                    />
+                  ) : (
+                    <div className="flex min-h-[5rem] min-w-[12rem] items-center justify-between gap-3 rounded-2xl bg-muted px-4 py-4 text-sm text-foreground">
+                      <div>
+                        <p className="font-semibold">PDF listo para subir</p>
+                        <p className="text-xs text-muted-foreground">{attachedFile?.name}</p>
+                      </div>
+                      <span className="rounded-full bg-primary/10 px-3 py-1 text-[0.8rem] text-primary-foreground">PDF</span>
+                    </div>
+                  )}
                   <button
                     type="button"
-                    onClick={() => setAttachedImage(null)}
+                    onClick={() => {
+                      setAttachedImage(null)
+                      setAttachedFile(null)
+                    }}
                     aria-label="Eliminar adjunto"
                     className="absolute -right-2 -top-2 flex size-6 items-center justify-center rounded-full bg-foreground text-background shadow-md transition-transform hover:scale-105"
                   >
@@ -510,11 +618,11 @@ export default function Page() {
               onSubmit={handleSubmit}
               className="flex items-end gap-2 rounded-[1.75rem] border border-border bg-card p-2 shadow-sm transition-colors focus-within:border-primary/50"
             >
-              <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
+              <input ref={fileRef} type="file" accept="image/*,application/pdf" className="hidden" onChange={handleFile} />
               <button
                 type="button"
                 onClick={() => fileRef.current?.click()}
-                aria-label="Adjuntar una captura de pantalla"
+                aria-label="Adjuntar una captura de pantalla o PDF"
                 className="flex size-10 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
               >
                 <Camera className="size-5" />
