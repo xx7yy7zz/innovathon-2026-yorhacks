@@ -2,7 +2,7 @@
 import ReactMarkdown from "react-markdown"
 import remarkMath from "remark-math"
 import rehypeKatex from "rehype-katex"
-import "katex/dist/katex.min.css" // This makes the math look beautiful!
+import "katex/dist/katex.min.css" 
 import type React from "react"
 import { useEffect, useRef, useState } from "react"
 import {
@@ -31,31 +31,30 @@ type Session = {
 }
 
 const SESSIONS: Session[] = [
-  { id: "s1", title: "Heart of Algebra Drill" },
-  { id: "s2", title: "Circle Equations Q#4" },
-  { id: "s3", title: "Quadratic formula help" },
-  { id: "s4", title: "Systems of equations" },
-  { id: "s5", title: "SAT pacing strategy" },
+  { id: "s1", title: "Práctica de Álgebra" },
+  { id: "s2", title: "Ecuaciones de Círculos Ejercicio #4" },
+  { id: "s3", title: "Ayuda con fórmula cuadrática" },
+  { id: "s4", title: "Sistemas de ecuaciones" },
+  { id: "s5", title: "Estrategia de tiempo para el examen" },
 ]
 
 const SUGGESTIONS = [
-  "Solve a linear equation",
-  "Explain the quadratic formula",
-  "Help with a word problem",
+  "Resolver una ecuación lineal",
+  "Explicar la fórmula cuadrática",
+  "Ayuda con un problema razonado",
 ]
 
 const WELCOME: ChatMessage = {
   id: "welcome",
   role: "assistant",
   content:
-    "Hi, I'm your EstudiaAmigo AI SAT tutor. Snap a screenshot of any math problem or type your question, and I'll walk you through it step by step. What are we working on today?",
+    "Hola, soy tu tutor de EstudiaAmigo AI. Sube una captura de pantalla de cualquier problema matemático o escribe tu pregunta, y te guiaré paso a paso. ¿En qué vamos a trabajar hoy?",
 }
 
 function renderContent(text: string) {
   return text.split("\n").map((line, i) => {
     if (line.trim() === "") return <div key={i} className="h-2" />
 
-    // Standalone formula / code line
     if (line.startsWith("`") && line.endsWith("`") && line.length > 1) {
       return (
         <div
@@ -67,7 +66,6 @@ function renderContent(text: string) {
       )
     }
 
-    // Inline bold (**...**) and inline code (`...`)
     const parts = line.split(/(\*\*[^*]+\*\*|`[^`]+`)/g).filter(Boolean)
     return (
       <p key={i} className="leading-7">
@@ -109,12 +107,10 @@ export default function Page() {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
-  // Auto-scroll to newest message
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" })
   }, [messages, isTyping])
 
-  // Auto-grow the textarea
   useEffect(() => {
     const el = textareaRef.current
     if (!el) return
@@ -122,21 +118,18 @@ export default function Page() {
     el.style.height = `${Math.min(el.scrollHeight, 160)}px`
   }, [inputText])
 
-  // --- UPDATED IMAGE HANDLER FOR BACKEND BASE64 ---
   function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
 
     const reader = new FileReader()
     reader.onloadend = () => {
-      // Stores the "data:image/jpeg;base64,..." string
       setAttachedImage(reader.result as string)
     }
     reader.readAsDataURL(file)
     e.target.value = ""
   }
 
-  // --- UPDATED SEND LOGIC TO CALL YOUR EXPRESS SERVER ---
   async function send(text: string, image: string | null) {
     const trimmed = text.trim()
     if (!trimmed && !image) return
@@ -154,7 +147,6 @@ export default function Page() {
     setIsTyping(true)
 
     try {
-      // Extract the raw base64 string without the prefix
       let base64Image = null;
       if (image) {
         base64Image = image.split(",")[1]; 
@@ -181,7 +173,7 @@ export default function Page() {
       console.error("FRONTEND FETCH ERROR DETECTED:", error)
       setMessages((prev) => [
         ...prev,
-        { id: `a-${Date.now()}`, role: "assistant", content: "Sorry, I ran into an error processing that problem. Please check your server connection." },
+        { id: `a-${Date.now()}`, role: "assistant", content: "Lo siento, ocurrió un error al procesar el problema. Por favor revisa la conexión con el servidor." },
       ])
     } finally {
       setIsTyping(false)
@@ -231,7 +223,7 @@ export default function Page() {
               if (mobileOpen) setMobileOpen(false)
               else setCollapsed((c) => !c)
             }}
-            aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            aria-label={isCollapsed ? "Expandir barra lateral" : "Contraer barra lateral"}
             className="flex size-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
           >
             {isCollapsed ? <PanelLeftOpen className="size-5" /> : <PanelLeftClose className="size-5" />}
@@ -247,14 +239,14 @@ export default function Page() {
             }`}
           >
             <Plus className="size-4 shrink-0" aria-hidden="true" />
-            {!isCollapsed && <span>New chat</span>}
+            {!isCollapsed && <span>Nuevo chat</span>}
           </button>
         </div>
 
         <nav className="flex-1 overflow-y-auto px-3 py-2">
           {!isCollapsed && (
             <p className="px-2 pb-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-              Past sessions
+              Sesiones anteriores
             </p>
           )}
           <ul className="flex flex-col gap-0.5">
@@ -294,7 +286,7 @@ export default function Page() {
             }`}
           >
             <Settings className="size-4 shrink-0" aria-hidden="true" />
-            {!isCollapsed && <span>Settings</span>}
+            {!isCollapsed && <span>Configuración</span>}
           </button>
         </div>
       </div>
@@ -315,7 +307,7 @@ export default function Page() {
         <div className="fixed inset-0 z-40 md:hidden">
           <button
             type="button"
-            aria-label="Close menu"
+            aria-label="Cerrar menú"
             onClick={() => setMobileOpen(false)}
             className="absolute inset-0 bg-foreground/40 backdrop-blur-sm"
           />
@@ -332,7 +324,7 @@ export default function Page() {
               <button
                 type="button"
                 onClick={() => setMobileOpen(true)}
-                aria-label="Open menu"
+                aria-label="Abrir menú"
                 className="flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground md:hidden"
               >
                 <Menu className="size-5" />
@@ -346,7 +338,7 @@ export default function Page() {
                 <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-500 opacity-75" />
                 <span className="relative inline-flex size-2 rounded-full bg-emerald-500" />
               </span>
-              <span className="text-xs font-medium text-muted-foreground">AI Tutor Active</span>
+              <span className="text-xs font-medium text-muted-foreground">Tutor IA Activo</span>
             </div>
           </div>
         </header>
@@ -360,7 +352,7 @@ export default function Page() {
                     {m.image && (
                       <img
                         src={m.image || "/placeholder.svg"}
-                        alt="Uploaded SAT problem"
+                        alt="Problema subido"
                         className="max-h-64 w-auto rounded-2xl border border-border object-cover"
                       />
                     )}
@@ -395,7 +387,7 @@ export default function Page() {
                     <span className="typing-dot size-1.5 rounded-full bg-primary [animation-delay:0.3s]" />
                   </span>
                   <span className="text-sm font-medium text-muted-foreground">
-                    Analyzing your math problem...
+                    Analizando tu problema matemático...
                   </span>
                 </div>
               </div>
@@ -425,13 +417,13 @@ export default function Page() {
                 <div className="relative">
                   <img
                     src={attachedImage || "/placeholder.svg"}
-                    alt="Attachment preview"
+                    alt="Vista previa del adjunto"
                     className="size-20 rounded-xl border border-border object-cover"
                   />
                   <button
                     type="button"
                     onClick={() => setAttachedImage(null)}
-                    aria-label="Remove attachment"
+                    aria-label="Eliminar adjunto"
                     className="absolute -right-2 -top-2 flex size-6 items-center justify-center rounded-full bg-foreground text-background shadow-md transition-transform hover:scale-105"
                   >
                     <X className="size-3.5" />
@@ -448,7 +440,7 @@ export default function Page() {
               <button
                 type="button"
                 onClick={() => fileRef.current?.click()}
-                aria-label="Attach a screenshot"
+                aria-label="Adjuntar una captura de pantalla"
                 className="flex size-10 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
               >
                 <Camera className="size-5" />
@@ -460,21 +452,21 @@ export default function Page() {
                 onChange={(e) => setInputText(e.target.value)}
                 onKeyDown={handleKeyDown}
                 rows={1}
-                placeholder="Ask a question or snap a problem..."
+                placeholder="Haz una pregunta o sube un problema..."
                 className="max-h-40 flex-1 resize-none bg-transparent py-2.5 text-[0.95rem] leading-6 text-foreground outline-none placeholder:text-muted-foreground"
               />
 
               <button
                 type="submit"
                 disabled={!canSend}
-                aria-label="Send message"
+                aria-label="Enviar mensaje"
                 className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground transition-all hover:bg-primary/90 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground"
               >
                 <ArrowUp className="size-5" />
               </button>
             </form>
             <p className="mt-2 text-center text-xs text-muted-foreground">
-              EstudiaAmigo AI can make mistakes. Always double-check your work.
+              EstudiaAmigo AI puede cometer errores. Siempre revisa tu trabajo.
             </p>
           </div>
         </div>
