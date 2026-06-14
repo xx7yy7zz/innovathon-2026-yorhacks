@@ -228,7 +228,7 @@ export default function Page() {
       })
 
       const data = await response.json()
-      
+
       if (data.error) throw new Error(data.error)
 
       let hasUpdatedNodes = false
@@ -451,9 +451,8 @@ export default function Page() {
           <button
             type="button"
             onClick={newChat}
-            className={`flex h-10 items-center gap-2 rounded-xl bg-primary text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 ${
-              isCollapsed ? "w-10 justify-center px-0" : "w-full px-3.5"
-            }`}
+            className={`flex h-10 items-center gap-2 rounded-xl bg-primary text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 ${isCollapsed ? "w-10 justify-center px-0" : "w-full px-3.5"
+              }`}
           >
             <Plus className="size-4 shrink-0" aria-hidden="true" />
             {!isCollapsed && <span>Nuevo chat</span>}
@@ -486,13 +485,11 @@ export default function Page() {
                         setShowProgress(true)
                       }}
                       title={s.title}
-                      className={`flex h-9 w-full items-center gap-2.5 rounded-lg text-left text-sm transition-colors ${
-                        isCollapsed ? "justify-center px-0" : "px-2.5"
-                      } ${
-                        active
+                      className={`flex h-9 w-full items-center gap-2.5 rounded-lg text-left text-sm transition-colors ${isCollapsed ? "justify-center px-0" : "px-2.5"
+                        } ${active
                           ? "bg-accent font-medium text-accent-foreground"
                           : "text-muted-foreground hover:bg-accent/60 hover:text-foreground"
-                      }`}
+                        }`}
                     >
                       <MessageSquare className="size-4 shrink-0" aria-hidden="true" />
                       {!isCollapsed && <span className="truncate">{s.title}</span>}
@@ -507,9 +504,8 @@ export default function Page() {
         <div className="border-t border-border/60 p-3">
           <button
             type="button"
-            className={`flex h-10 items-center gap-2.5 rounded-lg text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground ${
-              isCollapsed ? "w-10 justify-center px-0" : "w-full px-2.5"
-            }`}
+            className={`flex h-10 items-center gap-2.5 rounded-lg text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground ${isCollapsed ? "w-10 justify-center px-0" : "w-full px-2.5"
+              }`}
           >
             <Settings className="size-4 shrink-0" aria-hidden="true" />
             {!isCollapsed && <span>Configuración</span>}
@@ -545,9 +541,8 @@ export default function Page() {
                 type="button"
                 onClick={uploadStudyMaterial}
                 disabled={isAnalyzingBook}
-                className={`rounded-[1.75rem] border border-border px-6 py-6 text-left text-sm text-foreground transition hover:border-primary/40 hover:bg-accent ${
-                  isAnalyzingBook ? 'cursor-not-allowed opacity-60' : 'bg-zinc-900'
-                }`}
+                className={`rounded-[1.75rem] border border-border px-6 py-6 text-left text-sm text-foreground transition hover:border-primary/40 hover:bg-accent ${isAnalyzingBook ? 'cursor-not-allowed opacity-60' : 'bg-zinc-900'
+                  }`}
               >
                 <p className="font-semibold text-foreground">Subir material de estudio</p>
                 <p className="mt-2 text-sm text-muted-foreground">Carga un PDF para que el tutor use ese contenido como referencia.</p>
@@ -556,9 +551,8 @@ export default function Page() {
                 type="button"
                 onClick={startFreeChat}
                 disabled={isAnalyzingBook}
-                className={`rounded-[1.75rem] border border-border px-6 py-6 text-left text-sm text-foreground transition hover:border-primary/40 hover:bg-accent ${
-                  isAnalyzingBook ? 'cursor-not-allowed opacity-60' : 'bg-zinc-900'
-                }`}
+                className={`rounded-[1.75rem] border border-border px-6 py-6 text-left text-sm text-foreground transition hover:border-primary/40 hover:bg-accent ${isAnalyzingBook ? 'cursor-not-allowed opacity-60' : 'bg-zinc-900'
+                  }`}
               >
                 <p className="font-semibold text-foreground">Chat libre</p>
                 <p className="mt-2 text-sm text-muted-foreground">Inicia con una pregunta directa o sube una imagen del problema.</p>
@@ -574,9 +568,8 @@ export default function Page() {
     <div className="flex h-dvh bg-background">
       {isAnalyzingBook && <BookAnalysisOverlay progress={analysisProgress} />}
       <aside
-        className={`hidden shrink-0 border-r border-border/60 transition-[width] duration-300 md:block overflow-x-hidden ${
-          collapsed ? "w-16" : "w-64"
-        }`}
+        className={`hidden shrink-0 border-r border-border/60 transition-[width] duration-300 md:block overflow-x-hidden ${collapsed ? "w-16" : "w-64"
+          }`}
       >
         <SidebarContent isCollapsed={collapsed} />
       </aside>
@@ -613,19 +606,16 @@ export default function Page() {
               >
                 <Menu className="size-5" />
               </button>
-              <h1 className="text-lg font-bold tracking-tight text-foreground">
-                Estud<span className="text-emerald-400">IA</span>migo
-              </h1>
+
             </div>
             <div className="flex items-center gap-3">
               <button
                 type="button"
                 onClick={() => setShowProgress((p) => !p)}
-                className={`hidden xl:flex size-9 items-center justify-center rounded-lg border transition-all duration-200 ${
-                  showProgress
-                    ? "bg-emerald-950/40 border-emerald-500/30 text-emerald-400 shadow-sm"
-                    : "border-transparent text-muted-foreground hover:bg-accent hover:text-foreground"
-                }`}
+                className={`hidden xl:flex size-9 items-center justify-center rounded-lg border transition-all duration-200 ${showProgress
+                  ? "bg-emerald-950/40 border-emerald-500/30 text-emerald-400 shadow-sm"
+                  : "border-transparent text-muted-foreground hover:bg-accent hover:text-foreground"
+                  }`}
                 title={showProgress ? "Ocultar ruta de aprendizaje" : "Mostrar ruta de aprendizaje"}
               >
                 <Map className="size-5" />
@@ -643,67 +633,101 @@ export default function Page() {
 
 
 
-        <div ref={scrollRef} className="flex-1 overflow-y-auto">
-          <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-6 sm:px-6">
-            {messages.map((m) =>
-              m.role === "user" ? (
-                <div key={m.id} className="flex justify-end">
-                  <div className="flex max-w-[85%] flex-col items-end gap-2">
-                    {m.image && (
-                      <img
-                        src={m.image || "/placeholder.svg"}
-                        alt="Problema subido"
-                        className="max-h-64 w-auto rounded-2xl border border-border object-cover"
-                      />
-                    )}
-                    {m.content && (
-                      <div className="rounded-2xl rounded-br-md bg-primary px-4 py-2.5 text-[0.95rem] leading-7 text-primary-foreground">
-                        {m.content}
+        <div ref={scrollRef} className={`flex-1 overflow-y-auto ${messages.length === 0 ? "flex items-center justify-center" : ""}`}>
+          <div className={`mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-6 sm:px-6 ${messages.length === 0 ? "items-center justify-center text-center" : ""}`}>
+            {messages.length === 0 ? (
+              <div className="flex flex-col items-center justify-center space-y-6 animate-in fade-in duration-500 max-w-lg">
+                <div className="flex size-14 items-center justify-center rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-400 text-black shadow-lg shadow-emerald-500/20">
+                  <Sparkles className="size-7" />
+                </div>
+                <div className="space-y-3">
+                  <h2 className="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-white via-zinc-200 to-zinc-400 bg-clip-text text-transparent">
+                    Bienvenido a EstudIAmigo
+                  </h2>
+                  <p className="text-[0.95rem] text-muted-foreground leading-relaxed px-6">
+                    Escribe una pregunta de estudio o sube tu material de estudio creando un nuevo chat.
+                  </p>
+                </div>
+                <div className="flex flex-col sm:flex-row gap-3 pt-2 w-full sm:w-auto px-6 sm:px-0">
+                  <button
+                    type="button"
+                    onClick={uploadStudyMaterial}
+                    className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 px-5 text-sm font-bold text-black transition-all hover:opacity-95 shadow-md shadow-emerald-500/10 active:scale-[0.98] cursor-pointer"
+                  >
+                    <span>Subir material</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => send("¿Cómo me puedes ayudar hoy?", null)}
+                    className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-border bg-zinc-900 px-5 text-sm font-semibold text-zinc-300 transition-all hover:bg-zinc-800 hover:text-white cursor-pointer"
+                  >
+                    <span>Preguntar al Tutor</span>
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
+                {messages.map((m) =>
+                  m.role === "user" ? (
+                    <div key={m.id} className="flex justify-end">
+                      <div className="flex max-w-[85%] flex-col items-end gap-2">
+                        {m.image && (
+                          <img
+                            src={m.image || "/placeholder.svg"}
+                            alt="Problema subido"
+                            className="max-h-64 w-auto rounded-2xl border border-border object-cover"
+                          />
+                        )}
+                        {m.content && (
+                          <div className="rounded-2xl rounded-br-md bg-primary px-4 py-2.5 text-[0.95rem] leading-7 text-primary-foreground">
+                            {m.content}
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
-                </div>
-              ) : (
-                <div key={m.id} className="flex justify-start gap-3">
-                  <div className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                    <Sparkles className="size-3.5" aria-hidden="true" />
-                  </div>
-                  <div className="max-w-[85%] text-[0.95rem] text-foreground space-y-2">
-                    <ReactMarkdown
-                      remarkPlugins={[remarkMath]}
-                      rehypePlugins={[rehypeKatex]}
-                      components={{
-                        p: ({ children }) => <p className="leading-7">{children}</p>,
-                        strong: ({ children }) => <strong className="font-semibold text-foreground">{children}</strong>,
-                        ol: ({ children }) => <ol className="list-decimal pl-5 my-2.5 space-y-1.5">{children}</ol>,
-                        ul: ({ children }) => <ul className="list-disc pl-5 my-2.5 space-y-1.5">{children}</ul>,
-                        li: ({ children }) => <li className="leading-7">{children}</li>,
-                        pre: ({ children }) => <pre className="my-3 overflow-x-auto rounded-lg border border-border bg-muted p-4 font-mono text-[0.9rem] text-foreground">{children}</pre>,
-                        code: ({ inline, className, children, ...props }: any) => {
-                          const code = String(children).replace(/\n$/, "")
-                          const match = /language-(\w+)/.exec(className || "")
+                    </div>
+                  ) : (
+                    <div key={m.id} className="flex justify-start gap-3">
+                      <div className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+                        <Sparkles className="size-3.5" aria-hidden="true" />
+                      </div>
+                      <div className="max-w-[85%] text-[0.95rem] text-foreground space-y-2">
+                        <ReactMarkdown
+                          remarkPlugins={[remarkMath]}
+                          rehypePlugins={[rehypeKatex]}
+                          components={{
+                            p: ({ children }) => <p className="leading-7">{children}</p>,
+                            strong: ({ children }) => <strong className="font-semibold text-foreground">{children}</strong>,
+                            ol: ({ children }) => <ol className="list-decimal pl-5 my-2.5 space-y-1.5">{children}</ol>,
+                            ul: ({ children }) => <ul className="list-disc pl-5 my-2.5 space-y-1.5">{children}</ul>,
+                            li: ({ children }) => <li className="leading-7">{children}</li>,
+                            pre: ({ children }) => <pre className="my-3 overflow-x-auto rounded-lg border border-border bg-muted p-4 font-mono text-[0.9rem] text-foreground">{children}</pre>,
+                            code: ({ inline, className, children, ...props }: any) => {
+                              const code = String(children).replace(/\n$/, "")
+                              const match = /language-(\w+)/.exec(className || "")
 
-                          if (!inline && match?.[1] === "svg") {
-                            return (
-                              <div className="my-3 overflow-hidden rounded-lg border border-border bg-muted p-4">
-                                <div dangerouslySetInnerHTML={{ __html: code }} />
-                              </div>
-                            )
-                          }
+                              if (!inline && match?.[1] === "svg") {
+                                return (
+                                  <div className="my-3 overflow-hidden rounded-lg border border-border bg-muted p-4">
+                                    <div dangerouslySetInnerHTML={{ __html: code }} />
+                                  </div>
+                                )
+                              }
 
-                          return (
-                            <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-[0.9em] text-foreground" {...props}>
-                              {children}
-                            </code>
-                          )
-                        },
-                      }}
-                    >
-                      {preprocessLaTeX(m.content)}
-                    </ReactMarkdown>
-                  </div>
-                </div>
-              ),
+                              return (
+                                <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-[0.9em] text-foreground" {...props}>
+                                  {children}
+                                </code>
+                              )
+                            },
+                          }}
+                        >
+                          {preprocessLaTeX(m.content)}
+                        </ReactMarkdown>
+                      </div>
+                    </div>
+                  ),
+                )}
+              </>
             )}
 
             {isTyping && (
@@ -811,8 +835,8 @@ export default function Page() {
                     Avanzar al Siguiente Nivel: {
                       (() => {
                         const activeIndex = nodes.findIndex((n) => n.state === "active")
-                        return activeIndex !== -1 && activeIndex + 1 < nodes.length 
-                          ? nodes[activeIndex + 1].label 
+                        return activeIndex !== -1 && activeIndex + 1 < nodes.length
+                          ? nodes[activeIndex + 1].label
                           : "Siguiente Módulo"
                       })()
                     }
