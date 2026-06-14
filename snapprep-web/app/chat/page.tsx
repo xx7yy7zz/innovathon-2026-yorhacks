@@ -127,7 +127,7 @@ export default function Page() {
   const [activeId, setActiveId] = useState<string>("s1")
   const [sessions, setSessions] = useState<Session[]>([])
   const [showProgress, setShowProgress] = useState(true)
-  const [showStartOptions, setShowStartOptions] = useState(true)
+  const [showStartOptions, setShowStartOptions] = useState(false)
   const [isAnalyzingBook, setIsAnalyzingBook] = useState(false)
   const [analysisProgress, setAnalysisProgress] = useState(0)
   const progressRef = useRef<number | null>(null)

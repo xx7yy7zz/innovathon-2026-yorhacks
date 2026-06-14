@@ -104,7 +104,7 @@ ${summary}`
   return parsed?.nodes || null
 }
 
-function buildTextbookContext(topic) {
+function buildTextbookContext(topic, history) {
   if (!uploadedTextbook) return '';
   
   const niveles = uploadedTextbook.pathNodes 
@@ -115,7 +115,7 @@ function buildTextbookContext(topic) {
     ? uploadedTextbook.pathNodes[0].label 
     : null;
 
-  const isFirstTopic = !topic || !firstNodeLabel || topic.toLowerCase() === firstNodeLabel.toLowerCase();
+  const isFirstTopic = (!topic || !firstNodeLabel || topic.toLowerCase() === firstNodeLabel.toLowerCase()) && (!history || history.length === 0);
 
   const firstResponseInstruction = isFirstTopic 
     ? `\n[INSTRUCCIÓN CRÍTICA PARA TU PRIMERA RESPUESTA]: \n1. Confirma con entusiasmo que has analizado el libro.\n2. Anuncia cuál es el primer tema de la ruta (Nivel 1).\n3. Ponle un problema de práctica MUY SENCILLO sobre ese tema y pídele SOLO su respuesta final (el número). NO le pidas que explique nada todavía.`
@@ -158,7 +158,7 @@ app.post('/api/explain', async (req, res) => {
 
 TEMA ACTUAL BAJO ESTUDIO: ${currentTopic || 'Matemáticas'}
 
-${buildTextbookContext(currentTopic)}
+${buildTextbookContext(currentTopic, history)}
 
 MÁQUINA DE ESTADOS DEL TUTOR (DEBES SEGUIR ESTE FLUJO):
 
