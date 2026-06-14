@@ -83,6 +83,13 @@ function renderContent(text: string) {
   })
 }
 
+function preprocessLaTeX(text: string): string {
+  if (!text) return ""
+  return text
+    .replace(/\\\(|\\\)/g, "$")
+    .replace(/\\\[|\\\]/g, "$$")
+}
+
 function BookAnalysisOverlay({ progress }: { progress: number }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md animate-in fade-in duration-300">
@@ -126,7 +133,7 @@ export default function Page() {
   const [mobileOpen, setMobileOpen] = useState(false)
   const [activeId, setActiveId] = useState<string>("s1")
   const [sessions, setSessions] = useState<Session[]>([])
-  const [showProgress, setShowProgress] = useState(true)
+  const [showProgress, setShowProgress] = useState(false)
   const [showStartOptions, setShowStartOptions] = useState(false)
   const [isAnalyzingBook, setIsAnalyzingBook] = useState(false)
   const [analysisProgress, setAnalysisProgress] = useState(0)
@@ -417,7 +424,7 @@ export default function Page() {
                 <Sparkles className="size-4" aria-hidden="true" />
               </div>
               <span className="truncate text-sm font-bold tracking-tight text-foreground">
-                EstudiaAmigo AI <span className="text-primary"></span>
+                Estud<span className="text-emerald-400">IA</span>migo
               </span>
             </div>
           )}
@@ -447,7 +454,7 @@ export default function Page() {
           </button>
         </div>
 
-        <nav className="flex-1 overflow-y-auto px-3 py-2">
+        <nav className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-2">
           {!isCollapsed && (
             <p className="px-2 pb-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">
               Sesiones anteriores
@@ -455,9 +462,11 @@ export default function Page() {
           )}
           <ul className="flex flex-col gap-0.5">
             {sessions.length === 0 ? (
-              <li className="px-3 py-4 text-sm text-muted-foreground">
-                Aún no hay chats. Sube un PDF o inicia un chat libre.
-              </li>
+              !isCollapsed && (
+                <li className="px-3 py-4 text-sm text-muted-foreground">
+                  Aún no hay chats. Sube un PDF o inicia un chat libre.
+                </li>
+              )
             ) : (
               sessions.map((s) => {
                 const active = s.id === activeId
@@ -558,7 +567,7 @@ export default function Page() {
     <div className="flex h-dvh bg-background">
       {isAnalyzingBook && <BookAnalysisOverlay progress={analysisProgress} />}
       <aside
-        className={`hidden shrink-0 border-r border-border/60 transition-[width] duration-300 md:block ${
+        className={`hidden shrink-0 border-r border-border/60 transition-[width] duration-300 md:block overflow-x-hidden ${
           collapsed ? "w-16" : "w-64"
         }`}
       >
@@ -598,7 +607,7 @@ export default function Page() {
                 <Menu className="size-5" />
               </button>
               <h1 className="text-lg font-bold tracking-tight text-foreground">
-                EstudiaAmigo <span className="text-primary">AI</span>
+                Estud<span className="text-emerald-400">IA</span>migo
               </h1>
             </div>
             <div className="flex items-center gap-3">
@@ -607,7 +616,7 @@ export default function Page() {
                 onClick={() => setShowProgress((p) => !p)}
                 className={`hidden xl:flex size-9 items-center justify-center rounded-lg border transition-all duration-200 ${
                   showProgress
-                    ? "bg-orange-950/40 border-orange-500/30 text-orange-400 shadow-sm"
+                    ? "bg-emerald-950/40 border-emerald-500/30 text-emerald-400 shadow-sm"
                     : "border-transparent text-muted-foreground hover:bg-accent hover:text-foreground"
                 }`}
                 title={showProgress ? "Ocultar ruta de aprendizaje" : "Mostrar ruta de aprendizaje"}
@@ -683,7 +692,7 @@ export default function Page() {
                         },
                       }}
                     >
-                      {m.content}
+                      {preprocessLaTeX(m.content)}
                     </ReactMarkdown>
                   </div>
                 </div>
@@ -841,7 +850,7 @@ export default function Page() {
               </form>
             )}
             <p className="mt-2 text-center text-xs text-muted-foreground">
-              EstudiaAmigo AI puede cometer errores. Siempre revisa tu trabajo.
+              EstudIAmigo puede cometer errores. Siempre revisa tu trabajo.
             </p>
           </div>
         </div>

@@ -106,18 +106,18 @@ ${summary}`
 
 function buildTextbookContext(topic, history) {
   if (!uploadedTextbook) return '';
-  
-  const niveles = uploadedTextbook.pathNodes 
-    ? uploadedTextbook.pathNodes.map(n => n.label).join(', ') 
+
+  const niveles = uploadedTextbook.pathNodes
+    ? uploadedTextbook.pathNodes.map(n => n.label).join(', ')
     : 'conceptos básicos';
 
-  const firstNodeLabel = uploadedTextbook.pathNodes && uploadedTextbook.pathNodes[0] 
-    ? uploadedTextbook.pathNodes[0].label 
+  const firstNodeLabel = uploadedTextbook.pathNodes && uploadedTextbook.pathNodes[0]
+    ? uploadedTextbook.pathNodes[0].label
     : null;
 
   const isFirstTopic = (!topic || !firstNodeLabel || topic.toLowerCase() === firstNodeLabel.toLowerCase()) && (!history || history.length === 0);
 
-  const firstResponseInstruction = isFirstTopic 
+  const firstResponseInstruction = isFirstTopic
     ? `\n[INSTRUCCIÓN CRÍTICA PARA TU PRIMERA RESPUESTA]: \n1. Confirma con entusiasmo que has analizado el libro.\n2. Anuncia cuál es el primer tema de la ruta (Nivel 1).\n3. Ponle un problema de práctica MUY SENCILLO sobre ese tema y pídele SOLO su respuesta final (el número). NO le pidas que explique nada todavía.`
     : '';
 
@@ -192,6 +192,7 @@ REGLAS:
 - Todas las expresiones matemáticas deben ir dentro de delimitadores de LaTeX: "$ ... $" para inline y "$$ ... $$" para display.
 - No uses comandos TeX sueltos como \frac{1}{4} fuera de un bloque de delimitadores.
 - **No incluyas texto explicativo fuera de los bloques de código cuando generes SVGs, solo el código dentro del bloque.**
+- NUNCA menciones explícitamente los términos "Reto Feynman" o "Feynman" en tus respuestas; solicita la explicación de su razonamiento de manera natural y conversacional.
 `;
 
     const messages = [
