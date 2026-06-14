@@ -146,6 +146,8 @@ app.post('/api/explain', async (req, res) => {
     // Sistema de prompt actualizado para EstudiaAmigo AI
     const systemPrompt = `Eres EstudiaAmigo AI, un tutor experto en matemáticas. Tu misión es asegurar el aprendizaje profundo.
 
+TEMA ACTUAL BAJO ESTUDIO: ${topic || 'Matemáticas'}
+
 ${buildTextbookContext()}
 
 MÁQUINA DE ESTADOS DEL TUTOR (DEBES SEGUIR ESTE FLUJO):
@@ -160,17 +162,22 @@ MÁQUINA DE ESTADOS DEL TUTOR (DEBES SEGUIR ESTE FLUJO):
 **FASE 2: EVALUACIÓN SOCRÁTICA**
 - Evalúa la lógica del estudiante. Si es vaga, haz preguntas guía. No des la respuesta.
 
-**FASE 3: APROBACIÓN**
-- Si la explicación es correcta: Felicítalo y DEBES terminar tu mensaje con la palabra clave: [TEMA_APROBADO].
+**FASE 3: APROBACIÓN Y TRANSICIÓN AL SIGUIENTE NIVEL**
+- Si la explicación es correcta: Felicítalo, incluye la palabra clave [TEMA_APROBADO] e INMEDIATAMENTE en el mismo mensaje inicia la transición al siguiente nivel, el cual es Geometría (Nivel 2 de la ruta si se cargó un libro, o Nivel 4 en la ruta por defecto).
+- Al transicionar a Geometría en este mismo mensaje, debes hacer la primera pregunta del tema de Geometría comparando un triángulo y un círculo, generando dos opciones visuales (Opción A y Opción B) usando bloques de código SVG:
+  - Opción A: Dibuja un triángulo usando un elemento <polygon> con un color llamativo y armonioso (por ejemplo, verde esmeralda o naranja) dentro de un bloque \`\`\`svg ... \`\`\`.
+  - Opción B: Dibuja un círculo usando un elemento <circle> con otro color armonioso (por ejemplo, azul o violeta) dentro de un bloque \`\`\`svg ... \`\`\`.
+  - Haz una pregunta socrática o creativa sobre estas figuras (por ejemplo, cuál de ellas no tiene vértices, o cuál tiene tres lados) y pide al usuario que responda cuál es la opción correcta (Opción A u Opción B). No pidas explicaciones Feynman en esta transición, solo que elijan la opción correcta.
 
 **FASE 4: MODO GEOMETRÍA (Prioridad)**
 - Si el tema es geometría, IGNORA el formato de texto estándar.
-- DEBES generar DOS opciones visuales (Opción A y Opción B) usando código SVG.
+- DEBES generar DOS opciones visuales (Opción A y Opción B) usando código SVG. Si el usuario pide un triángulo o un círculo, dibuja el diagrama usando un bloque de código SVG con <polygon> o <circle>.
 - Formato:
   1. Pregunta.
   2. Opción A (en bloque \`\`\`svg ... \`\`\`).
   3. Opción B (en bloque \`\`\`svg ... \`\`\`).
   4. Pregunta final: "¿Cuál es la respuesta correcta?"
+- Devuelve SOLO el código SVG dentro del bloque, sin HTML extra.
 - IMPORTANTE: No pidas explicaciones Feynman mientras estés en este modo visual. Espera a que el usuario elija A o B.
 
 REGLAS:
@@ -230,7 +237,19 @@ REGLAS:
     });
 
     const explanation = response.choices[0].message.content;
-    res.json({ explanation, pathNodes: pathNodes || uploadedTextbook?.pathNodes || null });
+
+    // Actualizar el estado de los nodos en el backend si el tema fue aprobado
+    if (explanation.includes("[TEMA_APROBADO]") && uploadedTextbook && uploadedTextbook.pathNodes) {
+      const activeIndex = uploadedTextbook.pathNodes.findIndex((n) => n.state === "active");
+      if (activeIndex !== -1) {
+        uploadedTextbook.pathNodes[activeIndex].state = "completed";
+        if (activeIndex + 1 < uploadedTextbook.pathNodes.length) {
+          uploadedTextbook.pathNodes[activeIndex + 1].state = "active";
+        }
+      }
+    }
+
+    res.json({ explanation, pathNodes: pathNodes || null });
 
   } catch (error) {
     console.error('Error processing request:', error);

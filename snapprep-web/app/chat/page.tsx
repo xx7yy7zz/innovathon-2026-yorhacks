@@ -194,8 +194,10 @@ export default function Page() {
       
       if (data.error) throw new Error(data.error)
 
+      let hasUpdatedNodes = false
       if (Array.isArray(data.pathNodes) && data.pathNodes.length > 0) {
         setNodes(data.pathNodes)
+        hasUpdatedNodes = true
       }
 
       const hasApproved = data.explanation.includes("[TEMA_APROBADO]")
@@ -208,7 +210,7 @@ export default function Page() {
         { id: `a-${Date.now()}`, role: "assistant", content: cleanContent },
       ])
 
-      if (hasApproved) {
+      if (hasApproved && !hasUpdatedNodes) {
         setNodes((prevNodes) => {
           const activeIndex = prevNodes.findIndex((n) => n.state === "active")
           if (activeIndex !== -1) {
@@ -221,8 +223,6 @@ export default function Page() {
           }
           return prevNodes
         })
-
-        setMessages([WELCOME])
       }
     } catch (error) {
       console.error("FRONTEND FETCH ERROR DETECTED:", error)
@@ -603,11 +603,24 @@ export default function Page() {
                         ul: ({ children }) => <ul className="list-disc pl-5 my-2.5 space-y-1.5">{children}</ul>,
                         li: ({ children }) => <li className="leading-7">{children}</li>,
                         pre: ({ children }) => <pre className="my-3 overflow-x-auto rounded-lg border border-border bg-muted p-4 font-mono text-[0.9rem] text-foreground">{children}</pre>,
-                        code: ({ children, ...props }) => (
-                          <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-[0.9em] text-foreground" {...props}>
-                            {children}
-                          </code>
-                        ),
+                        code: ({ inline, className, children, ...props }: any) => {
+                          const code = String(children).replace(/\n$/, "")
+                          const match = /language-(\w+)/.exec(className || "")
+
+                          if (!inline && match?.[1] === "svg") {
+                            return (
+                              <div className="my-3 overflow-hidden rounded-lg border border-border bg-muted p-4">
+                                <div dangerouslySetInnerHTML={{ __html: code }} />
+                              </div>
+                            )
+                          }
+
+                          return (
+                            <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-[0.9em] text-foreground" {...props}>
+                              {children}
+                            </code>
+                          )
+                        },
                       }}
                     >
                       {m.content}
