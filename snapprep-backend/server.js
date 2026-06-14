@@ -104,21 +104,27 @@ ${summary}`
   return parsed?.nodes || null
 }
 
-function buildTextbookContext() {
+function buildTextbookContext(topic) {
   if (!uploadedTextbook) return '';
   
   const niveles = uploadedTextbook.pathNodes 
     ? uploadedTextbook.pathNodes.map(n => n.label).join(', ') 
     : 'conceptos básicos';
 
-  return `[CONTEXTO DEL SISTEMA]: 
-El estudiante acaba de cargar el libro de texto: "${uploadedTextbook.name}".
-Ruta de estudio generada: ${niveles}.
+  const firstNodeLabel = uploadedTextbook.pathNodes && uploadedTextbook.pathNodes[0] 
+    ? uploadedTextbook.pathNodes[0].label 
+    : null;
 
-[INSTRUCCIÓN CRÍTICA PARA TU PRIMERA RESPUESTA]: 
-1. Confirma con entusiasmo que has analizado el libro.
-2. Anuncia cuál es el primer tema de la ruta (Nivel 1).
-3. Ponle un problema de práctica MUY SENCILLO sobre ese tema y pídele SOLO su respuesta final (el número). NO le pidas que explique nada todavía.
+  const isFirstTopic = !topic || !firstNodeLabel || topic.toLowerCase() === firstNodeLabel.toLowerCase();
+
+  const firstResponseInstruction = isFirstTopic 
+    ? `\n[INSTRUCCIÓN CRÍTICA PARA TU PRIMERA RESPUESTA]: \n1. Confirma con entusiasmo que has analizado el libro.\n2. Anuncia cuál es el primer tema de la ruta (Nivel 1).\n3. Ponle un problema de práctica MUY SENCILLO sobre ese tema y pídele SOLO su respuesta final (el número). NO le pidas que explique nada todavía.`
+    : '';
+
+  return `[CONTEXTO DEL SISTEMA]: 
+El estudiante ha cargado el libro de texto: "${uploadedTextbook.name}".
+Ruta de estudio generada: ${niveles}.
+${firstResponseInstruction}
 
 Extracto del libro de referencia:
 ${uploadedTextbook.summary}`;
@@ -148,7 +154,7 @@ app.post('/api/explain', async (req, res) => {
 
 TEMA ACTUAL BAJO ESTUDIO: ${topic || 'Matemáticas'}
 
-${buildTextbookContext()}
+${buildTextbookContext(topic)}
 
 MÁQUINA DE ESTADOS DEL TUTOR (DEBES SEGUIR ESTE FLUJO):
 
@@ -162,22 +168,17 @@ MÁQUINA DE ESTADOS DEL TUTOR (DEBES SEGUIR ESTE FLUJO):
 **FASE 2: EVALUACIÓN SOCRÁTICA**
 - Evalúa la lógica del estudiante. Si es vaga, haz preguntas guía. No des la respuesta.
 
-**FASE 3: APROBACIÓN Y TRANSICIÓN AL SIGUIENTE NIVEL**
-- Si la explicación es correcta: Felicítalo, incluye la palabra clave [TEMA_APROBADO] e INMEDIATAMENTE en el mismo mensaje inicia la transición al siguiente nivel, el cual es Geometría (Nivel 2 de la ruta si se cargó un libro, o Nivel 4 en la ruta por defecto).
-- Al transicionar a Geometría en este mismo mensaje, debes hacer la primera pregunta del tema de Geometría comparando un triángulo y un círculo, generando dos opciones visuales (Opción A y Opción B) usando bloques de código SVG:
-  - Opción A: Dibuja un triángulo usando un elemento <polygon> con un color llamativo y armonioso (por ejemplo, verde esmeralda o naranja) dentro de un bloque \`\`\`svg ... \`\`\`.
-  - Opción B: Dibuja un círculo usando un elemento <circle> con otro color armonioso (por ejemplo, azul o violeta) dentro de un bloque \`\`\`svg ... \`\`\`.
-  - Haz una pregunta socrática o creativa sobre estas figuras (por ejemplo, cuál de ellas no tiene vértices, o cuál tiene tres lados) y pide al usuario que responda cuál es la opción correcta (Opción A u Opción B). No pidas explicaciones Feynman en esta transición, solo que elijan la opción correcta.
+**FASE 3: APROBACIÓN**
+- Si la explicación de la fase socrática es correcta: Felicítalo y DEBES incluir la palabra clave: [TEMA_APROBADO]. Explícale con entusiasmo que ha comprendido perfectamente el concepto y que ha superado el módulo con éxito. No introduzcas el siguiente tema, ni hagas preguntas nuevas, ni pases a geometría todavía. Limítate a felicitarlo y cerrar este nivel.
 
 **FASE 4: MODO GEOMETRÍA (Prioridad)**
 - Si el tema es geometría, IGNORA el formato de texto estándar.
-- DEBES generar DOS opciones visuales (Opción A y Opción B) usando código SVG. Si el usuario pide un triángulo o un círculo, dibuja el diagrama usando un bloque de código SVG con <polygon> o <circle>.
-- Formato:
-  1. Pregunta.
-  2. Opción A (en bloque \`\`\`svg ... \`\`\`).
-  3. Opción B (en bloque \`\`\`svg ... \`\`\`).
-  4. Pregunta final: "¿Cuál es la respuesta correcta?"
-- Devuelve SOLO el código SVG dentro del bloque, sin HTML extra.
+- Cuando se inicie el tema de Geometría o cuando el usuario pida comenzar, la primera pregunta DEBE ser sobre comparar un triángulo y un círculo.
+- DEBES generar DOS opciones visuales (Opción A y Opción B) usando bloques de código SVG:
+  - Opción A: Dibuja un triángulo usando un elemento <polygon> con un color llamativo y armonioso (por ejemplo, verde esmeralda con borde brillante) dentro de un bloque \`\`\`svg ... \`\`\`.
+  - Opción B: Dibuja un círculo usando un elemento <circle> con otro color armonioso (por ejemplo, azul o violeta) dentro de un bloque \`\`\`svg ... \`\`\`.
+- Haz una pregunta socrática o creativa sobre estas figuras (por ejemplo, cuál de ellas no tiene vértices, cuál de ellas tiene tres lados, o cuál es el círculo) y pídele al usuario que responda cuál es la opción correcta (Opción A u Opción B).
+- Devuelve SOLO el código SVG dentro de cada bloque, sin HTML extra.
 - IMPORTANTE: No pidas explicaciones Feynman mientras estés en este modo visual. Espera a que el usuario elija A o B.
 
 REGLAS:

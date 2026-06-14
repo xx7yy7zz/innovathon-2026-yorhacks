@@ -17,6 +17,7 @@ import {
   ArrowUp,
   X,
   Map,
+  ArrowRight,
 } from "lucide-react"
 import LearningPath, { PathNode } from "@/components/learning-path"
 
@@ -111,6 +112,7 @@ export default function Page() {
     { id: "5", label: "Trigonometría", state: "locked" },
     { id: "6", label: "Estadística", state: "locked" },
   ])
+  const [showNextLevelButton, setShowNextLevelButton] = useState(false)
 
   const scrollRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -210,19 +212,8 @@ export default function Page() {
         { id: `a-${Date.now()}`, role: "assistant", content: cleanContent },
       ])
 
-      if (hasApproved && !hasUpdatedNodes) {
-        setNodes((prevNodes) => {
-          const activeIndex = prevNodes.findIndex((n) => n.state === "active")
-          if (activeIndex !== -1) {
-            const updated = [...prevNodes]
-            updated[activeIndex] = { ...updated[activeIndex], state: "completed" }
-            if (activeIndex + 1 < updated.length) {
-              updated[activeIndex + 1] = { ...updated[activeIndex + 1], state: "active" }
-            }
-            return updated
-          }
-          return prevNodes
-        })
+      if (hasApproved) {
+        setShowNextLevelButton(true)
       }
     } catch (error) {
       console.error("FRONTEND FETCH ERROR DETECTED:", error)
@@ -261,6 +252,66 @@ export default function Page() {
     setMobileOpen(false)
     setInputText("")
     setAttachedImage(null)
+    setShowNextLevelButton(false)
+  }
+
+  async function handleNextLevel() {
+    setShowNextLevelButton(false)
+
+    // Find the next topic synchronously from current state
+    const activeIndex = nodes.findIndex((n) => n.state === "active")
+    let nextTopic = "Geometría"
+    if (activeIndex !== -1 && activeIndex + 1 < nodes.length) {
+      nextTopic = nodes[activeIndex + 1].label
+    }
+
+    // 1. Advance the nodes state locally
+    setNodes((prevNodes) => {
+      const idx = prevNodes.findIndex((n) => n.state === "active")
+      if (idx !== -1) {
+        const updated = [...prevNodes]
+        updated[idx] = { ...updated[idx], state: "completed" }
+        if (idx + 1 < updated.length) {
+          updated[idx + 1] = { ...updated[idx + 1], state: "active" }
+        }
+        return updated
+      }
+      return prevNodes
+    })
+
+    // 2. Clear messages
+    setMessages([])
+
+    // 3. Silently request the geometry question from backend
+    setIsTyping(true)
+    try {
+      const response = await fetch("http://127.0.0.1:3000/api/explain", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          text: "Comencemos con el siguiente nivel. Preséntame la primera pregunta.",
+          image: null,
+          history: [], // Clean history for the new level
+          topic: nextTopic,
+        }),
+      })
+
+      const data = await response.json()
+      if (data.error) throw new Error(data.error)
+
+      const cleanContent = data.explanation.replace("[TEMA_APROBADO]", "").trim()
+
+      setMessages([
+        { id: `a-${Date.now()}`, role: "assistant", content: cleanContent }
+      ])
+    } catch (error) {
+      console.error("ERROR TRANSITIONING LEVEL:", error)
+      setMessages([
+        { id: `a-${Date.now()}`, role: "assistant", content: "Lo siento, ocurrió un error al cargar el siguiente nivel. Por favor intenta de nuevo." }
+      ])
+    } finally {
+      setIsTyping(false)
+    }
   }
 
   function uploadStudyMaterial() {
@@ -724,40 +775,62 @@ export default function Page() {
               </div>
             )}
 
-            <form
-              onSubmit={handleSubmit}
-              className="flex items-end gap-2 rounded-[1.75rem] border border-border bg-card p-2 shadow-sm transition-colors focus-within:border-primary/50"
-            >
-              <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
-              <input ref={pdfRef} type="file" accept="application/pdf" className="hidden" onChange={handlePdfUpload} />
-              <button
-                type="button"
-                onClick={() => fileRef.current?.click()}
-                aria-label="Adjuntar una captura de pantalla"
-                className="flex size-10 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            {showNextLevelButton ? (
+              <div className="flex justify-center py-2 animate-in fade-in zoom-in-95 duration-200">
+                <button
+                  type="button"
+                  onClick={handleNextLevel}
+                  className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-500 font-bold text-black transition-all hover:bg-emerald-400 shadow-lg shadow-emerald-500/20 active:scale-[0.98] cursor-pointer"
+                >
+                  <span>
+                    Avanzar al Siguiente Nivel: {
+                      (() => {
+                        const activeIndex = nodes.findIndex((n) => n.state === "active")
+                        return activeIndex !== -1 && activeIndex + 1 < nodes.length 
+                          ? nodes[activeIndex + 1].label 
+                          : "Siguiente Módulo"
+                      })()
+                    }
+                  </span>
+                  <ArrowRight className="size-5" />
+                </button>
+              </div>
+            ) : (
+              <form
+                onSubmit={handleSubmit}
+                className="flex items-end gap-2 rounded-[1.75rem] border border-border bg-card p-2 shadow-sm transition-colors focus-within:border-primary/50"
               >
-                <Camera className="size-5" />
-              </button>
+                <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
+                <input ref={pdfRef} type="file" accept="application/pdf" className="hidden" onChange={handlePdfUpload} />
+                <button
+                  type="button"
+                  onClick={() => fileRef.current?.click()}
+                  aria-label="Adjuntar una captura de pantalla"
+                  className="flex size-10 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                >
+                  <Camera className="size-5" />
+                </button>
 
-              <textarea
-                ref={textareaRef}
-                value={inputText}
-                onChange={(e) => setInputText(e.target.value)}
-                onKeyDown={handleKeyDown}
-                rows={1}
-                placeholder="Haz una pregunta o sube un problema..."
-                className="max-h-40 flex-1 resize-none bg-transparent py-2.5 text-[0.95rem] leading-6 text-foreground outline-none placeholder:text-muted-foreground"
-              />
+                <textarea
+                  ref={textareaRef}
+                  value={inputText}
+                  onChange={(e) => setInputText(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  rows={1}
+                  placeholder="Haz una pregunta o sube un problema..."
+                  className="max-h-40 flex-1 resize-none bg-transparent py-2.5 text-[0.95rem] leading-6 text-foreground outline-none placeholder:text-muted-foreground"
+                />
 
-              <button
-                type="submit"
-                disabled={!canSend}
-                aria-label="Enviar mensaje"
-                className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground transition-all hover:bg-primary/90 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground"
-              >
-                <ArrowUp className="size-5" />
-              </button>
-            </form>
+                <button
+                  type="submit"
+                  disabled={!canSend}
+                  aria-label="Enviar mensaje"
+                  className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground transition-all hover:bg-primary/90 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground"
+                >
+                  <ArrowUp className="size-5" />
+                </button>
+              </form>
+            )}
             <p className="mt-2 text-center text-xs text-muted-foreground">
               EstudiaAmigo AI puede cometer errores. Siempre revisa tu trabajo.
             </p>
