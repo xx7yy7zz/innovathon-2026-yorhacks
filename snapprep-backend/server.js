@@ -33,7 +33,7 @@ async function parsePdfBase64(base64) {
   return new Promise((resolve, reject) => {
     try {
       const pdfBuffer = Buffer.from(base64, 'base64');
-      const pdfParser = new PDFParser(this, 1); // 1 = extract raw text
+      const pdfParser = new PDFParser(null, 1); // 1 = extract raw text
 
       pdfParser.on("pdfParser_dataError", errData => reject(errData.parserError));
       pdfParser.on("pdfParser_dataReady", pdfData => {
@@ -41,7 +41,7 @@ async function parsePdfBase64(base64) {
         resolve(extractedText || '');
       });
 
-      pdfParser.parseBuffer(pdfBuffer);
+      pdfParser.parseBuffer(new Uint8Array(pdfBuffer));
     } catch (error) {
       reject(error);
     }
@@ -136,6 +136,7 @@ app.post('/api/explain', async (req, res) => {
 
   try {
     let pathNodes = null;
+    let currentTopic = topic;
     if (file && file.type === 'application/pdf' && file.data) {
       const extractedText = await parsePdfBase64(file.data);
       const summary = extractedText.length > 80000 ? extractedText.slice(0, 80000) : extractedText; // Aumentado a 80k
@@ -146,15 +147,18 @@ app.post('/api/explain', async (req, res) => {
         summary,
         pathNodes: nodes,
       };
-      pathNodes = nodes
+      pathNodes = nodes;
+      if (nodes && nodes.length > 0) {
+        currentTopic = nodes[0].label;
+      }
     }
     // Sistema de prompt en español para EstudiaAmigo AI - Enfoque Feynman y Socrático
     // Sistema de prompt actualizado para EstudiaAmigo AI
     const systemPrompt = `Eres EstudiaAmigo AI, un tutor experto en matemáticas. Tu misión es asegurar el aprendizaje profundo.
 
-TEMA ACTUAL BAJO ESTUDIO: ${topic || 'Matemáticas'}
+TEMA ACTUAL BAJO ESTUDIO: ${currentTopic || 'Matemáticas'}
 
-${buildTextbookContext(topic)}
+${buildTextbookContext(currentTopic)}
 
 MÁQUINA DE ESTADOS DEL TUTOR (DEBES SEGUIR ESTE FLUJO):
 
@@ -213,7 +217,7 @@ REGLAS:
     const contentPayload = [];
     contentPayload.push({
       type: 'text',
-      text: text && text.trim() !== '' ? text : `Por favor, evalúa mi explicación sobre el tema de ${topic || 'Matemáticas'}.`,
+      text: text && text.trim() !== '' ? text : `Por favor, evalúa mi explicación sobre el tema de ${currentTopic || 'Matemáticas'}.`,
     });
 
     if (image) {

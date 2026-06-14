@@ -40,13 +40,6 @@ const SUGGESTIONS = [
   "Ayuda con un problema razonado",
 ]
 
-const WELCOME: ChatMessage = {
-  id: "welcome",
-  role: "assistant",
-  content:
-    "Hola, soy tu tutor de EstudiaAmigo AI. Sube una captura de pantalla de cualquier problema matemático o escribe tu pregunta, y te guiaré paso a paso. ¿En qué vamos a trabajar hoy?",
-}
-
 function renderContent(text: string) {
   return text.split("\n").map((line, i) => {
     if (line.trim() === "") return <div key={i} className="h-2" />
@@ -90,8 +83,42 @@ function renderContent(text: string) {
   })
 }
 
+function BookAnalysisOverlay({ progress }: { progress: number }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md animate-in fade-in duration-300">
+      <div className="w-full max-w-md rounded-[2.5rem] border border-border bg-card p-10 shadow-2xl shadow-black/40 text-center space-y-6 transform animate-in zoom-in-95 duration-350">
+        <div className="mx-auto flex size-20 items-center justify-center rounded-3xl bg-primary/10 border border-primary/20 text-primary shadow-lg shadow-primary/5 animate-pulse">
+          <Sparkles className="size-10 text-emerald-400" />
+        </div>
+
+        <div className="space-y-2">
+          <h2 className="text-2xl font-bold tracking-tight text-foreground">
+            Analizando material de estudio
+          </h2>
+          <p className="text-sm text-muted-foreground leading-relaxed px-4">
+            Nuestro tutor de Inteligencia Artificial está procesando tu archivo para diseñar tu ruta de aprendizaje personalizada.
+          </p>
+        </div>
+
+        <div className="space-y-3 pt-2">
+          <div className="flex justify-between text-xs font-semibold text-muted-foreground px-1">
+            <span>Escaneando páginas...</span>
+            <span className="text-emerald-400">{progress}%</span>
+          </div>
+          <div className="h-2.5 overflow-hidden rounded-full bg-neutral-900 border border-border/10 p-[1.5px]">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-400 transition-all duration-300 shadow-sm shadow-emerald-500/50"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function Page() {
-  const [messages, setMessages] = useState<ChatMessage[]>([WELCOME])
+  const [messages, setMessages] = useState<ChatMessage[]>([])
   const [inputText, setInputText] = useState("")
   const [attachedImage, setAttachedImage] = useState<string | null>(null)
   const [isTyping, setIsTyping] = useState(false)
@@ -100,7 +127,7 @@ export default function Page() {
   const [activeId, setActiveId] = useState<string>("s1")
   const [sessions, setSessions] = useState<Session[]>([])
   const [showProgress, setShowProgress] = useState(true)
-  const [showStartOptions, setShowStartOptions] = useState(false)
+  const [showStartOptions, setShowStartOptions] = useState(true)
   const [isAnalyzingBook, setIsAnalyzingBook] = useState(false)
   const [analysisProgress, setAnalysisProgress] = useState(0)
   const progressRef = useRef<number | null>(null)
@@ -187,7 +214,7 @@ export default function Page() {
           text: userContent,
           image: base64Image,
           file: pdfFile ? { name: pdfFile.name, type: pdfFile.type, data: pdfFile.data } : undefined,
-          history: nextMessages.map((m) => ({ role: m.role, content: m.content })),
+          history: messages.map((m) => ({ role: m.role, content: m.content })),
           topic: activeTopic,
         }),
       })
@@ -215,12 +242,25 @@ export default function Page() {
       if (hasApproved) {
         setShowNextLevelButton(true)
       }
+
+      if (hasPdf && pdfFile) {
+        const sessionId = `session-${Date.now()}`
+        setSessions([{ id: sessionId, title: pdfFile.name }])
+        setActiveId(sessionId)
+        setShowStartOptions(false)
+      }
     } catch (error) {
       console.error("FRONTEND FETCH ERROR DETECTED:", error)
       setMessages((prev) => [
         ...prev,
         { id: `a-${Date.now()}`, role: "assistant", content: "Lo siento, ocurrió un error al procesar el problema. Por favor revisa la conexión con el servidor." },
       ])
+      if (hasPdf && pdfFile) {
+        const sessionId = `session-${Date.now()}`
+        setSessions([{ id: sessionId, title: pdfFile.name }])
+        setActiveId(sessionId)
+        setShowStartOptions(false)
+      }
     } finally {
       setIsTyping(false)
       setIsAnalyzingBook(false)
@@ -246,7 +286,7 @@ export default function Page() {
   }
 
   function newChat() {
-    setMessages([WELCOME])
+    setMessages([])
     setActiveId("")
     setShowStartOptions(true)
     setMobileOpen(false)
@@ -340,11 +380,7 @@ export default function Page() {
     const file = e.target.files?.[0]
     if (!file) return
 
-    const sessionId = `session-${Date.now()}`
-    setSessions([{ id: sessionId, title: file.name }])
-    setActiveId(sessionId)
-    setShowStartOptions(false)
-    setMessages([WELCOME])
+    setMessages([])
     setIsTyping(true)
     setIsAnalyzingBook(true)
     startAnalysisProgress()
@@ -365,7 +401,7 @@ export default function Page() {
 
   function startFreeChat() {
     setShowStartOptions(false)
-    setMessages([WELCOME])
+    setMessages([])
     setAttachedImage(null)
   }
 
@@ -473,20 +509,7 @@ export default function Page() {
         <div className="w-full max-w-3xl rounded-[2rem] border border-border bg-card p-10 shadow-2xl shadow-black/20">
           <input ref={pdfRef} type="file" accept="application/pdf" className="hidden" onChange={handlePdfUpload} />
 
-          {isAnalyzingBook && (
-            <div className="mb-6 rounded-3xl border border-primary/30 bg-primary/10 p-4 text-sm text-foreground">
-              <div className="flex items-center justify-between font-semibold">
-                <span>Analizando el libro</span>
-                <span>{analysisProgress}%</span>
-              </div>
-              <div className="mt-3 h-2 overflow-hidden rounded-full bg-neutral-900">
-                <div
-                  className="h-full rounded-full bg-primary transition-all duration-300"
-                  style={{ width: `${analysisProgress}%` }}
-                />
-              </div>
-            </div>
-          )}
+          {isAnalyzingBook && <BookAnalysisOverlay progress={analysisProgress} />}
 
           <div className="space-y-6 text-center">
             <div>
@@ -533,6 +556,7 @@ export default function Page() {
 
   return (
     <div className="flex h-dvh bg-background">
+      {isAnalyzingBook && <BookAnalysisOverlay progress={analysisProgress} />}
       <aside
         className={`hidden shrink-0 border-r border-border/60 transition-[width] duration-300 md:block ${
           collapsed ? "w-16" : "w-64"
@@ -601,22 +625,7 @@ export default function Page() {
           </div>
         </header>
 
-        {isAnalyzingBook && (
-          <div className="mx-auto w-full max-w-3xl px-4 sm:px-6 py-4">
-            <div className="rounded-3xl border border-border bg-card p-4 shadow-sm">
-              <div className="flex items-center justify-between text-sm font-semibold text-foreground">
-                <span>Analizando el libro</span>
-                <span>{analysisProgress}%</span>
-              </div>
-              <div className="mt-3 h-2 overflow-hidden rounded-full bg-neutral-900">
-                <div
-                  className="h-full rounded-full bg-primary transition-all duration-300"
-                  style={{ width: `${analysisProgress}%` }}
-                />
-              </div>
-            </div>
-          </div>
-        )}
+
 
         <div ref={scrollRef} className="flex-1 overflow-y-auto">
           <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-6 sm:px-6">
@@ -739,7 +748,7 @@ export default function Page() {
                 </div>
               </div>
             ) : (
-              messages.length === 1 && !isTyping && (
+              messages.length === 0 && !isTyping && (
                 <div className="mb-3 flex flex-wrap gap-2">
                   {SUGGESTIONS.map((s) => (
                     <button
