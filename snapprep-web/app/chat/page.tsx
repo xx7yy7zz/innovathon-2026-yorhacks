@@ -636,35 +636,47 @@ export default function Page() {
         <div ref={scrollRef} className={`flex-1 overflow-y-auto ${messages.length === 0 ? "flex items-center justify-center" : ""}`}>
           <div className={`mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-6 sm:px-6 ${messages.length === 0 ? "items-center justify-center text-center" : ""}`}>
             {messages.length === 0 ? (
-              <div className="flex flex-col items-center justify-center space-y-6 animate-in fade-in duration-500 max-w-lg">
-                <div className="flex size-14 items-center justify-center rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-400 text-black shadow-lg shadow-emerald-500/20">
-                  <Sparkles className="size-7" />
+              isTyping ? (
+                <div className="flex flex-col items-center justify-center space-y-4 animate-in fade-in duration-500">
+                  <div className="relative flex size-12 items-center justify-center">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500/20 opacity-75" />
+                    <div className="size-10 rounded-full border-4 border-emerald-500/20 border-t-emerald-400 animate-spin" />
+                  </div>
+                  <span className="text-sm font-semibold text-muted-foreground animate-pulse">
+                    Cargando contenido
+                  </span>
                 </div>
-                <div className="space-y-3">
-                  <h2 className="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-white via-zinc-200 to-zinc-400 bg-clip-text text-transparent">
-                    Bienvenido a EstudIAmigo
-                  </h2>
-                  <p className="text-[0.95rem] text-muted-foreground leading-relaxed px-6">
-                    Escribe una pregunta de estudio o sube tu material de estudio creando un nuevo chat.
-                  </p>
+              ) : (
+                <div className="flex flex-col items-center justify-center space-y-6 animate-in fade-in duration-500 max-w-lg">
+                  <div className="flex size-14 items-center justify-center rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-400 text-black shadow-lg shadow-emerald-500/20">
+                    <Sparkles className="size-7" />
+                  </div>
+                  <div className="space-y-3">
+                    <h2 className="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-white via-zinc-200 to-zinc-400 bg-clip-text text-transparent">
+                      Bienvenido a EstudIAmigo
+                    </h2>
+                    <p className="text-[0.95rem] text-muted-foreground leading-relaxed px-6">
+                      Escribe una pregunta de estudio o sube tu material de estudio creando un nuevo chat.
+                    </p>
+                  </div>
+                  <div className="flex flex-col sm:flex-row gap-3 pt-2 w-full sm:w-auto px-6 sm:px-0">
+                    <button
+                      type="button"
+                      onClick={uploadStudyMaterial}
+                      className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 px-5 text-sm font-bold text-black transition-all hover:opacity-95 shadow-md shadow-emerald-500/10 active:scale-[0.98] cursor-pointer"
+                    >
+                      <span>Subir material</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => send("¿Cómo me puedes ayudar hoy?", null)}
+                      className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-border bg-zinc-900 px-5 text-sm font-semibold text-zinc-300 transition-all hover:bg-zinc-800 hover:text-white cursor-pointer"
+                    >
+                      <span>Preguntar al Tutor</span>
+                    </button>
+                  </div>
                 </div>
-                <div className="flex flex-col sm:flex-row gap-3 pt-2 w-full sm:w-auto px-6 sm:px-0">
-                  <button
-                    type="button"
-                    onClick={uploadStudyMaterial}
-                    className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 px-5 text-sm font-bold text-black transition-all hover:opacity-95 shadow-md shadow-emerald-500/10 active:scale-[0.98] cursor-pointer"
-                  >
-                    <span>Subir material</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => send("¿Cómo me puedes ayudar hoy?", null)}
-                    className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-border bg-zinc-900 px-5 text-sm font-semibold text-zinc-300 transition-all hover:bg-zinc-800 hover:text-white cursor-pointer"
-                  >
-                    <span>Preguntar al Tutor</span>
-                  </button>
-                </div>
-              </div>
+              )
             ) : (
               <>
                 {messages.map((m) =>
