@@ -104,8 +104,8 @@ ${summary}`
   return parsed?.nodes || null
 }
 
-function buildTextbookContext(topic, history) {
-  if (!uploadedTextbook) return '';
+function buildTextbookContext(topic, history, isTextbookMode) {
+  if (!isTextbookMode || !uploadedTextbook) return '';
 
   const niveles = uploadedTextbook.pathNodes
     ? uploadedTextbook.pathNodes.map(n => n.label).join(', ')
@@ -132,7 +132,8 @@ ${uploadedTextbook.summary}`;
 
 // The core SAT Tutor API endpoint
 app.post('/api/explain', async (req, res) => {
-  const { text, image, file, history, topic } = req.body;
+  const { text, image, file, history, topic, isTextbook } = req.body;
+  const isTextbookMode = isTextbook === true || (file ? true : false);
 
   try {
     let pathNodes = null;
@@ -156,9 +157,14 @@ app.post('/api/explain', async (req, res) => {
     // Sistema de prompt actualizado para EstudiaAmigo AI
     const systemPrompt = `Eres EstudiaAmigo AI, un tutor experto en matemáticas. Tu misión es asegurar el aprendizaje profundo.
 
-TEMA ACTUAL BAJO ESTUDIO: ${currentTopic || 'Matemáticas'}
+${isTextbookMode 
+  ? `TEMA ACTUAL BAJO ESTUDIO: ${currentTopic || 'Matemáticas'}
 
-${buildTextbookContext(currentTopic, history)}
+${buildTextbookContext(currentTopic, history, isTextbookMode)}`
+  : `MODO CHAT LIBRE: Puedes enseñar cualquier tema de matemáticas que el estudiante solicite (desde aritmética básica hasta cálculo, ecuaciones diferenciales, álgebra lineal, etc.). Adapta tu enseñanza de forma dinámica al tema y nivel que pida el estudiante.
+
+TEMA ACTUAL BAJO ESTUDIO: Determinado por la petición del estudiante (si no ha pedido uno específico aún, pregúntale qué tema de matemáticas desea aprender hoy).`
+}
 
 MÁQUINA DE ESTADOS DEL TUTOR (DEBES SEGUIR ESTE FLUJO):
 
@@ -186,6 +192,7 @@ MÁQUINA DE ESTADOS DEL TUTOR (DEBES SEGUIR ESTE FLUJO):
 - IMPORTANTE: No pidas explicaciones Feynman mientras estés en este modo visual. Espera a que el usuario elija A o B.
 
 REGLAS:
+- En Modo Chat Libre, sé completamente flexible: si el estudiante te pide aprender, preguntar o resolver problemas sobre cualquier otro tema matemático, atiende su solicitud directamente e inicia el flujo de enseñanza (Fases 0 a 3) para ese nuevo tema.
 - Tono: Directo, alentador, socrático.
 - Idioma: SIEMPRE en español.
 - Formato: Párrafos cortos, **negrita** en conceptos, LaTeX para mates ($x=7$ o $$x=7$$).
@@ -244,8 +251,8 @@ REGLAS:
 
     const explanation = response.choices[0].message.content;
 
-    // Actualizar el estado de los nodos en el backend si el tema fue aprobado
-    if (explanation.includes("[TEMA_APROBADO]") && uploadedTextbook && uploadedTextbook.pathNodes) {
+    // Actualizar el estado de los nodos en el backend si el tema fue aprobado y estamos en modo libro de texto
+    if (isTextbookMode && explanation.includes("[TEMA_APROBADO]") && uploadedTextbook && uploadedTextbook.pathNodes) {
       const activeIndex = uploadedTextbook.pathNodes.findIndex((n) => n.state === "active");
       if (activeIndex !== -1) {
         uploadedTextbook.pathNodes[activeIndex].state = "completed";

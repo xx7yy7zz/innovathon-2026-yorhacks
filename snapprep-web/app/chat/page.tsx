@@ -223,6 +223,7 @@ export default function Page() {
           file: pdfFile ? { name: pdfFile.name, type: pdfFile.type, data: pdfFile.data } : undefined,
           history: messages.map((m) => ({ role: m.role, content: m.content })),
           topic: activeTopic,
+          isTextbook: Boolean(pdfFile) || activeId.startsWith("session-"),
         }),
       })
 
@@ -255,6 +256,7 @@ export default function Page() {
         setSessions([{ id: sessionId, title: pdfFile.name }])
         setActiveId(sessionId)
         setShowStartOptions(false)
+        setShowProgress(true)
       }
     } catch (error) {
       console.error("FRONTEND FETCH ERROR DETECTED:", error)
@@ -267,6 +269,7 @@ export default function Page() {
         setSessions([{ id: sessionId, title: pdfFile.name }])
         setActiveId(sessionId)
         setShowStartOptions(false)
+        setShowProgress(true)
       }
     } finally {
       setIsTyping(false)
@@ -300,6 +303,7 @@ export default function Page() {
     setInputText("")
     setAttachedImage(null)
     setShowNextLevelButton(false)
+    setShowProgress(false)
   }
 
   async function handleNextLevel() {
@@ -340,6 +344,7 @@ export default function Page() {
           image: null,
           history: [], // Clean history for the new level
           topic: nextTopic,
+          isTextbook: true,
         }),
       })
 
@@ -410,6 +415,7 @@ export default function Page() {
     setShowStartOptions(false)
     setMessages([])
     setAttachedImage(null)
+    setShowProgress(false)
   }
 
   const canSend = (inputText.trim().length > 0 || attachedImage !== null) && !isTyping
@@ -477,6 +483,7 @@ export default function Page() {
                       onClick={() => {
                         setActiveId(s.id)
                         setMobileOpen(false)
+                        setShowProgress(true)
                       }}
                       title={s.title}
                       className={`flex h-9 w-full items-center gap-2.5 rounded-lg text-left text-sm transition-colors ${
@@ -711,7 +718,7 @@ export default function Page() {
                     <span className="typing-dot size-1.5 rounded-full bg-primary [animation-delay:0.3s]" />
                   </span>
                   <span className="text-sm font-medium text-muted-foreground">
-                    Analizando tu problema matemático...
+                    Analizando tu respuesta...
                   </span>
                 </div>
               </div>
